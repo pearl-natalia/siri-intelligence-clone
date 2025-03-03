@@ -1,3 +1,6 @@
 .env
 .DS_Store
-__pycache__
+__pycache__/
+autoreply_imsg/__pycache__/
+notes.txt
+settings.json

@@ -1,6 +1,7 @@
-import os
+import os, sys, os
 from google import genai
 from google.genai import types
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from dotenv import load_dotenv
 
 
@@ -13,8 +14,6 @@ def get_texts(msgs):
 
 def generate_reply(msgs):
     load_dotenv()
-
-
 
     # Fetch the GEMINI_API_KEY from the environment
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -45,7 +44,7 @@ def generate_reply(msgs):
         ),
     ]
     generate_content_config = types.GenerateContentConfig(
-        temperature=0,
+        temperature=1.8,
         top_p=0.95,
         top_k=40,
         max_output_tokens=8192,

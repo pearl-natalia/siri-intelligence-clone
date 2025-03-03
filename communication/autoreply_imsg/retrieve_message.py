@@ -1,7 +1,4 @@
-import sqlite3
-import os
-import datetime
-import re
+import sqlite3, os, datetime, re
 
 DB_PATH = os.path.expanduser("~/Library/Messages/chat.db")
 
@@ -10,8 +7,6 @@ def apple_timestamp_to_datetime(timestamp):
     if timestamp:
         return datetime.datetime(2001, 1, 1) + datetime.timedelta(seconds=timestamp / 1e9)
     return None
-
-import re
 
 def clean_receiving_msg(attributed_body):
     """ Extract readable text from attributedBody and remove system junk. """
