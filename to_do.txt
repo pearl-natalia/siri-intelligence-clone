@@ -1,0 +1,11 @@
+- feed history for back and fourth conversations
+- feed history to make imsg replies more realistic
+- in decision.py allow llm to give normal vs creative responses based on user input
+- remember details about you (add to history json until certain length threshold) to be more personalized
+    - pick an optimal threshold
+    - train it to identify important categories worth adding (preferences, siblings, names, etc)
+-  remove from history as well
+- transcribe and talk at same time
+- more accirate timer
+- talk before executing task/at same time   
+    - Right now it sets timer, executes it, then talks

@@ -1,4 +1,4 @@
-import sys
+import sys, json
 from transcription.transcribe import transcribe
 from model import model
 from system.system import adjust_system
@@ -76,17 +76,21 @@ def decision():
             </EXAMPLE>
             """
     
-    category = model(prompt, 2)
+    category = model(prompt, 1.5)
     if category == "system":
         adjust_system(content)
         generate_prompt = f"Generate me a short, concise response to the user's input: {content}"
     elif category == "llm":
-        generate_prompt = f"Generate a creative response to the user's input: {content}"
+        generate_prompt = f"Generate a friendly 1-2 sentence response to the user's input: {content}. Make sure it's not too long"
     else: # messages, facetime, or email
         generate_prompt = ""
+
+    with open('settings.json', 'r') as file:
+        json_data = json.load(file)
+    json_string = json.dumps(json_data)
     
     response_prompt =   f""" 
-                            You are an expert ai voice assistant. {generate_prompt}. 
+                            You are an expert ai voice assistant. {generate_prompt}. Here is some additional info if needed: {json_string}.
                             Only output the response and no additional text. 
 
                             <EXAMPLE>
@@ -116,7 +120,7 @@ def decision():
                                 </OUTPUT>
                             </EXAMPLE>
                         """
-    response = model(response_prompt, 2)
+    response = model(response_prompt, 1)
     print(response)
     speech(response)
 
