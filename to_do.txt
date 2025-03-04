@@ -9,3 +9,20 @@
 - more accirate timer
 - talk before executing task/at same time   
     - Right now it sets timer, executes it, then talks
+
+- add more features for coding
+    - give access to IDE
+- music scripts
+- interperet input (i.e. play the weeknds newest album)
+    - fix so it actually plays the song
+
+- give song suggestions and output specific format (song name, artist, etc)
+
+- determine when to stop recoding (based on ques)
+- stop listening when no proper words spoken for 2 seconds
+- fix play a song --> pipepine to ask more questions
+- set up creative responses (play a funny youtube video)
+- generating text (i.e. an essay in notes app)
+- playing from playlist isn't working
+- opening imsg in communication tab
+- long term history

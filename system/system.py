@@ -11,7 +11,7 @@ def adjust_system(task):
 
     prompt = f"""
             You are an assistant skilled in generating AppleScript (OSA) scripts for automating tasks on macOS.
-            Based on the user's needs, generate the AppleScript code that performs a following task(s): {task}.
+            Based on the user's needs, generate the AppleScript code that performs the following task(s): {task}.
             You will be creative with how you achieve more complex tasks and break them down. 
             Only output the scripts, no additional text. Use the examples to determine how the output should be formatted.
             If the task can't be achieved via an apple script, output "cannot generate script". 
@@ -38,28 +38,47 @@ def adjust_system(task):
 
                 <EXAMPLE>
                     <INPUT>
-                    Decrease brightness.
+                        Decrease brightness.
                     </INPUT>
                     <OUTPUT>
-                    tell application \"System Events\" to key code 144" -e "tell application \"System Events\" to key code 144
+                        tell application \"System Events\" to key code 144" -e "tell application \"System Events\" to key code 144
                     </OUTPUT>
                 </EXAMPLE>
 
                 <EXAMPLE>
                     <INPUT>
-                    Increase volume and decrease brightness.
+                        Increase volume and decrease brightness.
                     </INPUT>
                     <OUTPUT>
-                    set volume output volume (output volume of (get volume settings) + 10)" && osascript -e "tell application \"System Events\" to key code 144
+                        set volume output volume (output volume of (get volume settings) + 10)" && osascript -e "tell application \"System Events\" to key code 144
                     </OUTPUT>
                 </EXAMPLE>
 
                 <EXAMPLE>
                     <INPUT>
-                    Charge my macbook.
+                        Close all apps except Chrome, Safari, and VS Code.
                     </INPUT>
                     <OUTPUT>
-                    cannot generate script
+                        set keepApps to {"Google Chrome", "Safari", "Visual Studio Code"}
+                        tell application "System Events"
+                            set appList to name of (processes where background only is false)
+                        end tell
+                        repeat with appName in appList
+                            if appName is not in keepApps then
+                                try
+                                    do shell script "killall '" & appName & "'"
+                                end try
+                            end if
+                        end repeat
+                    </OUTPUT>
+                </EXAMPLE>
+
+                <EXAMPLE>
+                    <INPUT>
+                        Charge my macbook.
+                    </INPUT>
+                    <OUTPUT>
+                        cannot generate script
                     </OUTPUT>
                 </EXAMPLE>
 

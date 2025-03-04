@@ -13,28 +13,28 @@ def facetime(contact):
 
                 <EXAMPLE>
                     <INPUT>
-                    Contact: Rajan
+                        Contact: Rajan
                     </Input>
                     <OUTPUT>
-                    name
+                        name
                     </OUTPUT>
                 </EXAMPLE>
 
                 <EXAMPLE>
                     <INPUT>
-                    Contact: +12345678900
+                        Contact: +12345678900
                     </Input>
                     <OUTPUT>
-                    phone number
+                        phone number
                     </OUTPUT>
                 </EXAMPLE>
 
                 <EXAMPLE>
                     <INPUT>
-                    Contact: Apples are a fruit
+                        Contact: Apples are a fruit
                     </Input>
                     <OUTPUT>
-                    name
+                        name
                     </OUTPUT>
                 </EXAMPLE>
 

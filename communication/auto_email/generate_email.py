@@ -67,34 +67,34 @@ def generate_email(content):
 
             <EXAMPLE>
                 <INPUT> 
-                    Send an email to Jenny reminding her that we have a meeting via zoom tmrw at 9am.
+                Send an email to Jenny reminding her that we have a meeting via zoom tmrw at 9am.
                 </INPUT>
                 <OUTPUT>
-                    subject: Meeting Reminder for Tomorrow at 9 AM via Zoom
-                    email: 
-                    Dear Jenny,
-                    I hope this message finds you well. I wanted to kindly remind you that we have a scheduled meeting tomorrow, February 29th at 9 AM via Zoom.
+                subject: Meeting Reminder for Tomorrow at 9 AM via Zoom
+                email: 
+                Dear Jenny,
+                I hope this message finds you well. I wanted to kindly remind you that we have a scheduled meeting tomorrow, February 29th at 9 AM via Zoom.
 
-                    Please let me know if there are any changes or additional information needed. I look forward to our discussion.
+                Please let me know if there are any changes or additional information needed. I look forward to our discussion.
 
-                    Best regards,
-                    John Doe
+                Best regards,
+                John Doe
                 </OUTPUT>
             </EXAMPLE>
             <EXAMPLE>
                 <INPUT> 
-                    Send an email to 1234567890 reminding her that we have a meeting via zoom tmrw at 9am.
+                Send an email to 1234567890 reminding her that we have a meeting via zoom tmrw at 9am.
                 </INPUT>
                 <OUTPUT>
-                    subject: Meeting Reminder for Tomorrow at 9 AM via Zoom
-                    email: 
-                    Hello,
-                    I hope this message finds you well. I wanted to kindly remind you that we have a scheduled meeting tomorrow, February 29th at 9 AM via Zoom.
+                subject: Meeting Reminder for Tomorrow at 9 AM via Zoom
+                email: 
+                Hello,
+                I hope this message finds you well. I wanted to kindly remind you that we have a scheduled meeting tomorrow, February 29th at 9 AM via Zoom.
 
-                    Please let me know if there are any changes or additional information needed. I look forward to our discussion.
+                Please let me know if there are any changes or additional information needed. I look forward to our discussion.
 
-                    Best regards,
-                    John Doe
+                Best regards,
+                John Doe
                 </OUTPUT>
             </EXAMPLE>
 

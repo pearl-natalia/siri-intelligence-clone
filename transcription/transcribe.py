@@ -2,14 +2,13 @@ import whisper, time, threading, os
 import sounddevice as sd
 import numpy as np
 
-def transcribe():
+def transcribe(SILENCE_DURATION = 2):
     # Audio parameters
     RATE = 16000
     CHANNELS = 1
     CHUNK = 1024
     SILENCE_THRESHOLD = 0.5
-    SILENCE_DURATION = 2 # Seconds of silence to trigger stop
-    
+        
     model = whisper.load_model("base")
     recorded_audio = []
     last_sound_time = time.time()
