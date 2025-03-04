@@ -4,7 +4,7 @@ from model import model
 from datetime import datetime
 
 def adjust_system(task):
-    with open('../settings.json', 'r') as file:
+    with open('settings.json', 'r') as file:
         json_data = json.load(file)
     json_string = json.dumps(json_data)
     current_datetime = datetime.now().strftime("%A, %B %d, %Y %I:%M:%S %p")
@@ -67,8 +67,3 @@ def adjust_system(task):
             """
     apple_script =  model(prompt, 2)
     subprocess.run(['osascript', '-e', apple_script], capture_output=True, text=True)
-
-
-if __name__ == "__main__":
-    input = "set a 4 second timer"
-    adjust_system(input)

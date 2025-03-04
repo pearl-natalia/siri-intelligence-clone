@@ -1,7 +1,8 @@
 import sys
-sys.path.append('/Users/pearlnatalia/Desktop/siri')
 from transcription.transcribe import transcribe
 from model import model
+from system.system import adjust_system
+from transcription.speech import speech
 
 def get_content():
     transcribe()
@@ -22,17 +23,12 @@ def decision():
     
     # Figure out action
     prompt = f"""
-            You are an expert AI voice assistant who executes actions based on user input. 
-            You will take the user's transcription and determine the category that action belongs in.
-            Output 'communication' if the action involes messages, emails, or facetime calls. 
-            Output 'system' if the action involes interaction with the device's system 
-            (i.e. adjusting volume, searching something up, essentially anything that can be
-            executed with apple scripts via the terminal that doesn't involve emails, messages, or facetiming/phone calls). 
-            Output 'llm' if the action involes generating a response to the input with no executable action.
-            Output 'none' if the action does not fall under 'communication', 'system', nor 'llm' (i.e. an executable action that can't be done via the terminal). 
-            Do not output any additional text.
-
+            You will take the user's transcription and determine the category that their action belongs in. 
             Here is the input transcription: {content}.
+            Output 'communication' if the action involes messages, emails, or facetime calls. 
+            Output 'system' if the action can be executed with osa (apple) scripts via the terminal and doesn't involve emails, messages, or facetiming/phone calls). 
+            Otherwise, output 'llm' of not 'communication' nor 'system'.
+            Only output either 'communication', 'system', or 'llm' in all lowercase. Do not output any additional text.
 
             <EXAMPLE>
                 <INPUT> 
@@ -50,7 +46,16 @@ def decision():
                 <OUTPUT>
                     system
                 </OUTPUT>
-             </EXAMPLE>
+            </EXAMPLE>
+
+            <EXAMPLE>
+                <INPUT> 
+                    Generate a cookie recipe.
+                </INPUT>
+                <OUTPUT>
+                    llm
+                </OUTPUT>
+            </EXAMPLE>
 
             <EXAMPLE>
                 <INPUT> 
@@ -61,17 +66,60 @@ def decision():
                 </OUTPUT>
             </EXAMPLE>
 
-             <EXAMPLE>
+            <EXAMPLE>
                 <INPUT> 
                     Charge my computer.
                 </INPUT>
                 <OUTPUT>
-                    none
+                    llm
                 </OUTPUT>
-             </EXAMPLE>
+            </EXAMPLE>
             """
     
-    return model(prompt)
+    category = model(prompt, 2)
+    if category == "system":
+        adjust_system(content)
+        generate_prompt = f"Generate me a short, concise response to the user's input: {content}"
+    elif category == "llm":
+        generate_prompt = f"Generate a creative response to the user's input: {content}"
+    else: # messages, facetime, or email
+        generate_prompt = ""
+    
+    response_prompt =   f""" 
+                            You are an expert ai voice assistant. {generate_prompt}. 
+                            Only output the response and no additional text. 
+
+                            <EXAMPLE>
+                                <INPUT> 
+                                    Find me a cookie recipe.
+                                </INPUT>
+                                <OUTPUT>
+                                    Here is a cookie recipe I found on the internet.
+                                </OUTPUT>
+                            </EXAMPLE>
+
+                            <EXAMPLE>
+                                <INPUT> 
+                                    Charge my computer.
+                                </INPUT>
+                                <OUTPUT>
+                                    I can't do that unfortunately.
+                                </OUTPUT>
+                            </EXAMPLE>
+
+                             <EXAMPLE>
+                                <INPUT> 
+                                    Turn the volume up.
+                                </INPUT>
+                                <OUTPUT>
+                                   I turned the volume up!
+                                </OUTPUT>
+                            </EXAMPLE>
+                        """
+    response = model(response_prompt, 2)
+    print(response)
+    speech(response)
+
 
 if __name__ == "__main__":
-    print(decision())
+    decision()

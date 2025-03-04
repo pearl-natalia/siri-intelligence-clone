@@ -1,4 +1,4 @@
-import whisper, time, threading
+import whisper, time, threading, os
 import sounddevice as sd
 import numpy as np
 
@@ -8,7 +8,7 @@ def transcribe():
     CHANNELS = 1
     CHUNK = 1024
     SILENCE_THRESHOLD = 0.5
-    SILENCE_DURATION = 3  # Seconds of silence to trigger stop
+    SILENCE_DURATION = 2 # Seconds of silence to trigger stop
     
     model = whisper.load_model("base")
     recorded_audio = []
@@ -52,12 +52,11 @@ def transcribe():
     full_recording = np.concatenate(recorded_audio, axis=0).flatten().astype(np.float32)
 
     # Transcription
-    print("Transcribing audio...")
     result = model.transcribe(full_recording, language='en')
     transcription = result["text"].strip()
-    with open("transcription.txt", "w") as file:
+    with open(os.path.join(os.path.dirname(__file__), "transcription.txt"), "w") as file:
         file.write(transcription + "\n")
-    print("\nDone")
+    print("\nDone transcribing...")
 
 if __name__ == "__main__":
     transcribe()
