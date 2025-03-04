@@ -70,6 +70,5 @@ def adjust_system(task):
 
 
 if __name__ == "__main__":
-    input = "set a detailed reminder to buy apples for tmrw at 9 am"
+    input = "set a 4 second timer"
     adjust_system(input)
-

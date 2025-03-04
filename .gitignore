@@ -4,3 +4,4 @@ __pycache__/
 autoreply_imsg/__pycache__/
 notes.txt
 settings.json
+venv/

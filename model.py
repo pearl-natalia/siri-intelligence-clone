@@ -5,10 +5,7 @@ from dotenv import load_dotenv
 
 def model(prompt, tmp):
     load_dotenv()
-    
-    # Fetch the GEMINI_API_KEY from the environment
     api_key = os.environ.get("GEMINI_API_KEY")
-
     if not api_key:
         raise ValueError("API key is missing. Make sure it's in your .env file.")
     
@@ -25,6 +22,7 @@ def model(prompt, tmp):
             ],
         ),
     ]
+    
     generate_content_config = types.GenerateContentConfig(
         temperature=tmp,
         top_p=0.95,
