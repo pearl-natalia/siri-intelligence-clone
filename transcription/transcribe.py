@@ -1,4 +1,4 @@
-import whisper, time, threading, os
+import whisper, time, threading, os, warnings
 import sounddevice as sd
 import numpy as np
 
@@ -8,8 +8,9 @@ def transcribe(SILENCE_DURATION = 2):
     CHANNELS = 1
     CHUNK = 1024
     SILENCE_THRESHOLD = 0.5
-        
+
     model = whisper.load_model("base")
+    warnings.filterwarnings("ignore", message="FP16 is not supported on CPU; using FP32 instead")
     recorded_audio = []
     last_sound_time = time.time()
 
@@ -31,12 +32,12 @@ def transcribe(SILENCE_DURATION = 2):
         nonlocal running  # Access the running variable from the enclosing function
         while running:
             if time.time() - last_sound_time > SILENCE_DURATION:
-                print("\nSilence detected. Stopping recording...")
+                print("Silence detected. Stopping recording...")
                 running = False
             time.sleep(0.5)
 
     try:
-        print("Recording... Speak into the mic. Press Ctrl+C to stop manually.")
+        print("\nRecording... Speak into the mic. Press Ctrl+C to stop manually.")
         silence_thread = threading.Thread(target=silence_monitor)
         silence_thread.start()
 
@@ -45,7 +46,7 @@ def transcribe(SILENCE_DURATION = 2):
                 time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("\nManual stop detected. Finishing up...")
+        print("Manual stop detected. Finishing up...")
 
     # Concatenate all recorded audio chunks into a single array
     full_recording = np.concatenate(recorded_audio, axis=0).flatten().astype(np.float32)
@@ -55,7 +56,6 @@ def transcribe(SILENCE_DURATION = 2):
     transcription = result["text"].strip()
     with open(os.path.join(os.path.dirname(__file__), "transcription.txt"), "w") as file:
         file.write(transcription + "\n")
-    print("\nDone transcribing...")
 
 if __name__ == "__main__":
     transcribe()

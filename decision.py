@@ -1,15 +1,18 @@
 import sys, json
+from datetime import datetime
 from system.music import music
-from system.system import adjust_system
+from system.system import adjust_system, world_clock, get_location
+from system.weather import weather
+from system.auto_calendar import calendar
 from transcription.speech import speech
 from transcription.transcribe import transcribe
 from model import model, add_user_message, add_assistant_message, get_history
 
 def get_content(silence_duration=-1):
-    if silence_duration != -1:
-        transcribe(SILENCE_DURATION=silence_duration)
-    else:
-        transcribe()
+    # if silence_duration != -1:
+    #     transcribe(SILENCE_DURATION=silence_duration)
+    # else:
+    #     transcribe()
     with open("transcription/transcription.txt", "r") as file:
         content = file.read().strip()
     if content=="":
@@ -18,11 +21,15 @@ def get_content(silence_duration=-1):
 
 def previous_user_message():
     user_message = None
+    counter = 3
     for message in reversed(get_history()):
-        if message["role"] == "user" and message["content"]!="":
+        if message["role"] == "user" and message["content"]!="" and message["content"] is not None:
             user_message = message["content"]
-            return user_message
-    return None
+            return True
+        counter -=1
+        if counter==0:
+            break
+    return False
 
 def decision():
     with open('settings.json', 'r') as file:
@@ -31,19 +38,18 @@ def decision():
 
     # Attempt 1
     content = get_content()
-    add_user_message(content)
     
     # No response
     if content is None:
         # Attempt 2
-        if previous_user_message() is None:
+        if previous_user_message() is False:
             speech(f"What can I do for you, {json_data['user_first_name']}?")
         else:
             speech(f"Sorry, I didn't get that. Could you please repeat yourself?")
         content = get_content(3)
         
         if content is None:
-            if previous_user_message() is not None
+            if previous_user_message() is True:
                 sys.exit()
             else:
                 # Attempt 3
@@ -51,16 +57,21 @@ def decision():
                 content = get_content(3)
                 if content is None:
                     sys.exit()
+    
+    add_user_message(content)
 
     # Determine the action
     prompt = f"""
             You will take the user's transcription and determine the category that their action belongs in. 
             Here is the input transcription: {content}.
             Output 'communication' if the action involes messages, emails, or facetime calls. 
+            Output 'weather' if the action involes weather information.
+            Output 'time' if the action involes checking the time.
             Output 'song' if the action involves playing, pausing, opening, etc music. The prompt should include key words like 'play' but don't need to include key words like 'song' for the category to be 'song'.
-            Output 'system' if the action can be executed with osa (apple) scripts via the terminal and doesn't involve emails, messages, songs, or facetiming/phone calls). 
+            Output 'calendar' if the action involes schedules, events, calendars, etc.
+            Output 'system' if the action can be executed with osa (apple) scripts via the terminal (i.e. directions) and doesn't involve emails, messages, songs, weather, 'calendar', nor facetiming/phone calls.
             Otherwise, output 'llm' of not 'communication' nor 'system'.
-            Only output either 'communication', 'song', 'system', or 'llm' in all lowercase. Do not output any additional text.
+            Only output either 'communication', 'weather', 'time', 'song', 'calendar', 'system', or 'llm' in all lowercase. Do not output any additional text.
 
             <EXAMPLE>
                 <INPUT> 
@@ -68,6 +79,15 @@ def decision():
                 </INPUT>
                 <OUTPUT>
                     communication
+                </OUTPUT>
+            </EXAMPLE>
+
+            <EXAMPLE>
+                <INPUT> 
+                    How cold is it tomorrow?
+                </INPUT>
+                <OUTPUT>
+                    weather
                 </OUTPUT>
             </EXAMPLE>
 
@@ -109,6 +129,24 @@ def decision():
 
             <EXAMPLE>
                 <INPUT> 
+                    Time in san fransisco
+                </INPUT>
+                <OUTPUT>
+                    time
+                </OUTPUT>
+            </EXAMPLE>
+
+            <EXAMPLE>
+                <INPUT> 
+                    What's my schedule like tomorrow?
+                </INPUT>
+                <OUTPUT>
+                    calendar
+                </OUTPUT>
+            </EXAMPLE>
+
+            <EXAMPLE>
+                <INPUT> 
                     Charge my computer.
                 </INPUT>
                 <OUTPUT>
@@ -124,13 +162,14 @@ def decision():
     elif category == "song":
         generate_prompt = f"Generate me a short, concise response to the user's input: {content}. Something like 'now playing <song name> on spotify."
     elif category == "llm":
-        generate_prompt = f"Generate a friendly 1-2 sentence response to the user's input: {content}. Make sure it's not too long"
+        generate_prompt = f"Generate a friendly 1-2 sentence response to the user's input: {content}. Make sure it's not too long. Your job is to continue the conversation."
     else: # messages, facetime, or email
         generate_prompt = ""
-    
+
     response_prompt =   f""" 
                         You are an expert ai voice assistant. {generate_prompt}. Here is some additional info if needed: {json_string}.
-                        Only output the response and no additional text. If the conversation history isn't empty, your job is to continue the conversation.
+                        Only output the response and no additional text. Assume time, date, and current location information already provided and don't request these details from user.
+                        Here is the date {datetime.now().date()} and time {datetime.now().time()} and current location {get_location()} if needed in the response.
 
                         <EXAMPLE>
                             <INPUT> 
@@ -150,7 +189,7 @@ def decision():
                             </OUTPUT>
                         </EXAMPLE>
 
-                            <EXAMPLE>
+                        <EXAMPLE>
                             <INPUT> 
                                 Turn the volume up.
                             </INPUT>
@@ -158,26 +197,41 @@ def decision():
                                 I turned the volume up!
                             </OUTPUT>
                         </EXAMPLE>
-                        """
-    response = model(response_prompt, 1, history=True)
 
+                        <EXAMPLE>
+                            <INPUT> 
+                                Directions to Vaughan Mills.
+                            </INPUT>
+                            <OUTPUT>
+                                Directions have been entered.
+                            </OUTPUT>
+                        </EXAMPLE>
+                        """
+    if category != "weather" and category != "time": #no response needed if weather
+        response = model(response_prompt, 1, history=True)
 
     # Action
     if category == "system":
         adjust_system(content)
     elif category == "song":
         music(content, response)
-    # elif category == "llm":
-    # else: # messages, facetime, or email
-    #     generate_prompt = ""
+    elif category == "weather":
+        weather(content)
+    elif category == "time":
+        world_clock(content)
+    elif category == "calendar":
+        calendar(content)
+    # ADD OTHER ACTIONS
+
+
+    if category == "calendar":
+        sys.exit()
 
     add_assistant_message(response)
-    
-    print(response)
     speech(response)
 
     if category == "system" or category == "song":
-        sys.exit() # Stop AI assistant once music plays
+        sys.exit()
 
 if __name__ == "__main__":
     while True:

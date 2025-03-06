@@ -6,3 +6,6 @@
 5. drag "run_decision.sh" into dropbox -> "run" -> save as "Siri Clone"
 6. system settings -> keyboard shortcuts -> services -> general -> "Siri Clone"
 7. Click Command + Opion + Shift + T -> Done
+
+*Setting up location Access on Mac*
+1. System Settings -> Apple ID -> iCloud -> Find My Mac (and make sure it's ON)

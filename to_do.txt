@@ -1,3 +1,4 @@
+To do:
 - feed history for back and fourth conversations
 - feed history to make imsg replies more realistic
 - in decision.py allow llm to give normal vs creative responses based on user input
@@ -26,3 +27,13 @@
 - playing from playlist isn't working
 - opening imsg in communication tab
 - long term history
+- photos
+- weather
+- stop recording if no follow up is needed
+- pipeline if can't use osa apple script
+
+done:
+- clock app (i.e. currently uses toronto time when asking for time in sf)
+- return errors (i.e. meeting not found)
+- photos
+- directions to contact names houses, and requests address if not in contact

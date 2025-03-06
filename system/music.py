@@ -109,8 +109,7 @@ def get_music_action(dialogue, llm_response):
                 </INPUT>
             """
 
-    info = model(prompt, 1)
-    song_info, action_type = info.rsplit(',', 1)
+    song_info, action_type = model(prompt, 1).rsplit(',', 1)
     song_info = song_info.strip()
     action_type = action_type.strip()
     return song_info, action_type
