@@ -37,3 +37,4 @@ done:
 - return errors (i.e. meeting not found)
 - photos
 - directions to contact names houses, and requests address if not in contact
+- respond song needs to be specified if asked to play a song, then take input and execute command

@@ -40,7 +40,7 @@ def adjust_system(task):
             You will be creative with how you achieve more complex tasks and break them down. 
             Only output the scripts, no additional text. Use the examples to determine how the output should be formatted.
             If the task can't be achieved via an apple script, output "cannot generate script". 
-            If increasing/decreasing any setting, do it by 2x (i.e. increase volume by 20 instead of 10).
+            If increasing/decreasing any setting, do it by 2x (i.e. increase volume by 20 instead of 10). If asked to generate a lot of text (i.e. paragraph, essay, etc), write it in the notes app.
             Use the following settings to adjust the scripts to the user's preferences (i.e. default browser): 
             
             <USER SETTINGS>

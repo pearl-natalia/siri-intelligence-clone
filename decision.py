@@ -69,9 +69,10 @@ def decision():
             Output 'time' if the action involes checking the time.
             Output 'song' if the action involves playing, pausing, opening, etc music. The prompt should include key words like 'play' but don't need to include key words like 'song' for the category to be 'song'.
             Output 'calendar' if the action involes schedules, events, calendars, etc.
-            Output 'system' if the action can be executed with osa (apple) scripts via the terminal (i.e. directions) and doesn't involve emails, messages, songs, weather, 'calendar', nor facetiming/phone calls.
-            Otherwise, output 'llm' of not 'communication' nor 'system'.
-            Only output either 'communication', 'weather', 'time', 'song', 'calendar', 'system', or 'llm' in all lowercase. Do not output any additional text.
+            Output 'notes' if the action requires generating text (i.e lists, essays, recipes, etc) that would be best suited to be written in the notes app.
+            Output 'system' if the action can be executed with osa (apple) scripts via the terminal (i.e. directions) and doesn't involve emails, messages, songs, weather, calendar, notes, nor facetiming/phone calls. This includes generating long text (i.e. essays, paragraphs, etc), which will be written in the notes app.
+            Otherwise, output 'llm'.
+            Only output either 'communication', 'weather', 'time', 'song', 'calendar', 'notes', 'system', or 'llm' in all lowercase. Do not output any additional text.
 
             <EXAMPLE>
                 <INPUT> 
@@ -99,6 +100,16 @@ def decision():
                     system
                 </OUTPUT>
             </EXAMPLE>
+
+            <EXAMPLE>
+                <INPUT> 
+                    Write me an essay about flowers.
+                </INPUT>
+                <OUTPUT>
+                    notes
+                </OUTPUT>
+            </EXAMPLE>
+
 
             <EXAMPLE>
                 <INPUT> 
@@ -163,12 +174,16 @@ def decision():
         generate_prompt = f"Generate me a short, concise response to the user's input: {content}. Something like 'now playing <song name> on spotify."
     elif category == "llm":
         generate_prompt = f"Generate a friendly 1-2 sentence response to the user's input: {content}. Make sure it's not too long. Your job is to continue the conversation."
+    elif category == "notes":
+        generate_prompt = f"Generate a friendly 1-2 sentence response to the user's input: {content}. Make sure not to output the generated text itself, and just mention that it was written in the notes app."
+
+
     else: # messages, facetime, or email
         generate_prompt = ""
 
     response_prompt =   f""" 
                         You are an expert ai voice assistant. {generate_prompt}. Here is some additional info if needed: {json_string}.
-                        Only output the response and no additional text. Assume time, date, and current location information already provided and don't request these details from user.
+                        Only output the response and no additional text. This output will be converted to speech and played as audio for the user to listen to. Assume time, date, and current location information already provided and don't request these details from user.
                         Here is the date {datetime.now().date()} and time {datetime.now().time()} and current location {get_location()} if needed in the response.
 
                         <EXAMPLE>
@@ -207,11 +222,12 @@ def decision():
                             </OUTPUT>
                         </EXAMPLE>
                         """
+    
     if category != "weather" and category != "time": #no response needed if weather
         response = model(response_prompt, 1, history=True)
 
     # Action
-    if category == "system":
+    if category == "system" or category=="notes":
         adjust_system(content)
     elif category == "song":
         music(content, response)
