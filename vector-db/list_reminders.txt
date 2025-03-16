@@ -1,0 +1,5 @@
+Meeting with Sarah, date Monday, March 17, 2025 at 10:00:00 AM, false, 4
+Doctor Appointment, date Tuesday, March 18, 2025 at 2:00:00 PM, true, 3
+Work Presentation, date Wednesday, March 19, 2025 at 1:00:00 PM, false, 5
+Team Call, date Thursday, March 20, 2025 at 11:00:00 AM, true, 2
+Grocery Shopping, date Friday, March 21, 2025 at 5:00:00 PM, false, 1
