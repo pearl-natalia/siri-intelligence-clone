@@ -56,6 +56,7 @@ def transcribe(SILENCE_DURATION = 2):
     transcription = result["text"].strip()
     with open(os.path.join(os.path.dirname(__file__), "transcription.txt"), "w") as file:
         file.write(transcription + "\n")
+        print("User: ", transcription)
 
 if __name__ == "__main__":
     transcribe()

@@ -167,7 +167,7 @@ def decision():
             """
     
     category = model(prompt, 1.5)
-    print(category)
+    print("Category: ", category)
     if category == "system":
         generate_prompt = f"Generate me a short, concise response to the user's input: {content}"
     elif category == "song":
@@ -184,7 +184,7 @@ def decision():
     response_prompt =   f""" 
                         You are an expert ai voice assistant. {generate_prompt}. Here is some additional info if needed: {json_string}.
                         Only output the response and no additional text. This output will be converted to speech and played as audio for the user to listen to. Assume time, date, and current location information already provided and don't request these details from user.
-                        Here is the date {datetime.now().date()} and time {datetime.now().time()} and current location {get_location()} if needed in the response.
+                        Here is the date {datetime.now().date()} and time {datetime.now().time()}. The current location is {get_location()}. If asked location information, convert the coordinates into a speakable format such as the city, unless specifically asked for coordinates.
 
                         <EXAMPLE>
                             <INPUT> 
@@ -224,11 +224,14 @@ def decision():
                         """
     
     if category != "weather" and category != "time": #no response needed if weather
-        response = model(response_prompt, 1, history=True)
+        response = model(response_prompt, 1, short_term_history=True)
 
     # Action
-    if category == "system" or category=="notes":
+    if category=="notes":
+        content = "You will do so in the notes app. " + content
         adjust_system(content)
+    elif category=="system":
+            content += "You will do so in the notes app."
     elif category == "song":
         music(content, response)
     elif category == "weather":

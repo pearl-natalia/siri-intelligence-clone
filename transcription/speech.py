@@ -47,6 +47,5 @@ from pydub import AudioSegment
 #     p.terminate()
 
 def speech(dialogue):
-    print(dialogue)
-    import sys;sys.exit()
-    # os.system(f'say -v Alex "{dialogue}"')
+    print("Brad: ", dialogue)
+    os.system(f'say -v Alex "{dialogue}"')

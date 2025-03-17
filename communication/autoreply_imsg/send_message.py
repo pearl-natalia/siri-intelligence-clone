@@ -34,7 +34,7 @@ def main():
         if msgs and msgs[-1] != LAST_MSG and msgs[-1]['Sender'] != "me:":
             print("New message detected!")
             LAST_MSG = msgs[-1]  # Update the last message
-            reply = generate_reply(msgs).rstrip('\n')
+            reply = generate_reply(phone_number, msgs).rstrip('\n')
             print(reply) # Call generate.py
             subprocess.run(['osascript', '-e', generate_apple_script(phone_number, reply)])
 

@@ -7,11 +7,6 @@ from datetime import datetime
 from pyicloud import PyiCloudService
 from dotenv import load_dotenv
 
-import os
-import platform
-from dotenv import load_dotenv
-from pyicloud import PyiCloudService
-
 def get_location():
     load_dotenv()
     iCloud_user = os.getenv("ICLOUD_USER")
@@ -23,7 +18,7 @@ def get_location():
     chosen_device = None
     for device in api.devices:
         if device.get('name') == device_name:
-            return f"[{device.location()['latitude']}, {device.location()['longitude']}]"
+            return f"{device.location()['latitude']},{device.location()['longitude']}"
     return None    
 
 
@@ -107,11 +102,36 @@ def adjust_system(task):
                 </OUTPUT>
             </EXAMPLE>
 
-            Side note: today's date is {current_datetime}. Current location coorindates are: {get_location()}.
+            Side note: today's date is {current_datetime}. Current location coorindates are: {get_location()}. If asked about location information, convert the coordinates into a human-readable format.
             """
     apple_script = model(prompt, 1)
     print(apple_script)
     subprocess.run(['osascript', '-e', apple_script], capture_output=True, text=True)
+
+    prompt = f"""
+                Summarize the Purpose of the AppleScript: Provide a short, clear summary of what the AppleScript does. 
+                Is it interacting with an application? What is the script's overall goal? 
+                Be very descriptive. Only output the summary, no additional text.
+                - Extract Key Information: Identify and extract important details from the script, such as:
+                - Content being created or modified (e.g., in a Notes app, an email app, etc.)
+                - Search queries or actions (e.g., searches made within a specific app)
+                - Any other key data points based on the script's interaction with the application
+
+                <EXAMPLE>
+                    <INPUT>
+                        tell application "Notes"
+                            activate
+                            set newNote to make new note with properties {{name:"Shopping List"}}
+                            set body of newNote to "Buy: Milk, Eggs, and Butter."
+                        end tell
+                    </INPUT>
+                    <OUTPUT>
+                        This AppleScript creates a new note titled "Shopping List" in the Notes app and sets the content of the note to "Buy: Milk, Eggs, and Butter."
+                    </OUTPUT>
+                </EXAMPLE>
+            """
+
+
 
 
 def world_clock(dialogue):

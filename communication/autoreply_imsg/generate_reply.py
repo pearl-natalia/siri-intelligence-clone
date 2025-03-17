@@ -3,6 +3,7 @@ from google import genai
 from google.genai import types
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from dotenv import load_dotenv
+from high_frequency_words import get_high_freq_words
 
 
 # Load environment variables from .env file
@@ -12,7 +13,7 @@ def get_texts(msgs):
     formatted_string = "\n".join([f"{index + 1}: {item}" for index, item in enumerate(msgs)])
     return formatted_string
 
-def generate_reply(msgs):
+def generate_reply(phone_number, msgs):
     load_dotenv()
 
     # Fetch the GEMINI_API_KEY from the environment
@@ -24,6 +25,11 @@ def generate_reply(msgs):
     client = genai.Client(api_key=api_key)
     txts = get_texts(msgs)
 
+    high_freq_words = get_high_freq_words(phone_number, msgs)
+    freq_prompt = ""
+    if len(high_freq_words) != 0:
+        freq_prompt = f"Here are some common phrases, words, and/or emojis I like to use. If applicable and it makes sense, use some of these phrases/words/emojis. "
+
     model = "gemini-2.0-flash"
     contents = [
         types.Content(
@@ -32,9 +38,9 @@ def generate_reply(msgs):
                 types.Part.from_text(
                     text=f"""You are pretending to be me and will respond to my text message. 
                             Don't make the tone of the messages sound AI generated. 
-                            Use the tone of my messages as a guide on how to set the tone of this generated response.
+                            Use the tone of my previous messages as a guide on how to set the tone of this generated response.
                             Also match the tone/energy of my friend.
-                            Keep the messages nonchalant but sound like me.
+                            Keep the messages nonchalant but sound like me. {freq_prompt} 
                             Use the time stamps to get relavent context and respond to the user. You can add to the conversation to keep it going.
                             Only output exactly what will be sent to the recepient. Use my previous replies to determine if I prefer capitalizing the start of my sentences or not.
                             The texts are ordered from least to most recent. Here are the texts:

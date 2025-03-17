@@ -1,11 +1,30 @@
 
-import requests, os, sys, json
+import requests, os, sys, json, platform
 from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'transcription')))
 from dotenv import load_dotenv
 from speech import speech
-from model import model
+from model import model, add_assistant_message
+from geopy.geocoders import Nominatim
+from pyicloud import PyiCloudService
+
+def get_location():
+    try:
+        load_dotenv()
+        iCloud_user = os.getenv("ICLOUD_USER")
+        iCloud_pass = os.getenv("ICLOUD_PASSWORD")
+        api = PyiCloudService(iCloud_user, iCloud_pass)
+        device_name = platform.node()  # Current macbook's name
+        
+        device_name = "Pearl's Macbook Air" # TMP; REMOVE
+        chosen_device = None
+        for device in api.devices:
+            if device.get('name') == device_name:
+                return f"{device.location()['latitude']},{device.location()['longitude']}"
+        return None    
+    except:
+        return None
 
 def weather(dialogue):
     # API
@@ -67,8 +86,18 @@ def weather(dialogue):
     time = time.strip()
 
     if city == "no city" or time == "no time":
-        speech("Unfortunately, I don't have that information at this time.")
-        sys.exit()
+        coords = get_location()
+        if coords is None:
+            speech("Unfortunately, I don't have that information at this time.")
+            sys.exit()
+        geolocator = Nominatim(user_agent="weather_app")
+        location = geolocator.reverse(coords, language='en')
+        if location:
+            city = location.raw['address'].get('city', 'Unknown City')
+            time = "current"
+        else:
+            speech("Unfortunately, I don't have that information at this time.")
+            sys.exit()
 
     url = f"https://api.weatherapi.com/v1/{time}.json?key={api_key}&q={city}"
     data = requests.get(url).json()
@@ -83,6 +112,7 @@ def weather(dialogue):
 
                     <EXAMPLE OUTPUT> It's currently 3 degrees celcius. </EXAMPLE OUTPUT>
                 """
-    
-    speech(model(prompt, 2))
+    response = model(prompt, 2)
+    add_assistant_message(response)
+    speech(response)
     sys.exit()

@@ -1,7 +1,7 @@
 import subprocess, sys, os, re
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../transcription')))
-from model import model
+from model import model, get_history
 from speech import speech
 from datetime import datetime
 
@@ -142,6 +142,8 @@ def agent_reply(user_request, llm_responses, information):
                 Here is the user's request: {user_request}
                 For context, here is the information gathered: {information}.
                 Here are the previous assistant responses: {llm_responses}.
+
+                If the user request is refering to a prevous conversation, refer to the previous conversation: {get_history()}.
                 """
     response = model(prompt, 1.5)
     speech(response)

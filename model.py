@@ -1,11 +1,11 @@
-import os
+import os, sqlite3
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
 conversation_history = []
 MAX_HISTORY = 20
-
+# Short term history
 def add_user_message(content):
     conversation_history.append({"role": "user", "content": content})
     trim_history()
@@ -21,7 +21,7 @@ def trim_history():
 def get_history():
     return conversation_history
 
-def model(prompt, tmp, history=False):
+def model(prompt, tmp, short_term_history=False):
     load_dotenv()
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -33,7 +33,7 @@ def model(prompt, tmp, history=False):
     contents = []
     
     # History
-    if history:
+    if short_term_history:
         for entry in conversation_history:
             contents.append(
                 types.Content(
