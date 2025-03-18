@@ -2,7 +2,7 @@
 Swift is an AI assistant for MacBooks, inspired by what Siri could become with Apple Intelligence by 2026. It processes voice commands by breaking them down into executable AppleScript actions via AI agents.
 
 <p align="center">
-  <img src="readme_images/pipeline.png" alt="alt text" width="90%"/>
+  <img width="90%" alt="alt-text" src="https://github.com/user-attachments/assets/9fdc8177-a5e5-4cbb-9704-ca5186673318" />
 </p>
 
 ### INPUT
@@ -50,5 +50,5 @@ At the end of the conversation, the local history is stored in a global SQL data
 ### USE CASES
 
 <p align="center">
-  <img src="readme_images/use-cases.png" alt="alt text" width="90%"/>
+  <img width="90%" alt="alt-text" src="https://github.com/user-attachments/assets/19abf663-f51e-49ff-b521-51fd42ddc8d4" />
 </p>
