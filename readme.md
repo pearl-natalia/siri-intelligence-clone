@@ -1,16 +1,18 @@
-### Overview
+# Swift
+
+## Overview
 Swift is an AI assistant for MacBooks, inspired by what Siri could become with Apple Intelligence by 2026. It processes voice commands by breaking them down into executable AppleScript actions via AI agents.
 
 <p align="center">
   <img width="100%" alt="alt-text" src="https://github.com/user-attachments/assets/cb4f2774-fccf-499e-a419-fd3f3b623096" />
 </p>
 
-### INPUT
+## INPUT
 The voice assistant will listen for input audio until a threshold of silence, giberish (umms, ands, etc) or background noise is met. Whisper will then output the transcription into a .txt which will serve as the initial input for the voice assistant. 
 
 Using few-shot prompting, Gemini determines the category of the action (refer to diagram). This is crucial to ensure specific APIs are only provided to the agent when needed. 
 
-### EXECUTION
+## EXECUTION
 Then, the agent uses chain-of-thought reasoning to break down the request into smaller steps to understand how to achieve it with executable actions.
 
 #### EXAMPLE 
@@ -44,10 +46,10 @@ This category handles conversational and inquiry-based requests. Since it's conv
 #### RAG (IN PROGRESS)
 These stored interactions in SQL are intended to be converted into a vector database, enabling Retrieval-Augmented Generation (RAG) to fetch relevant context for future interactions. For example, if a user asks, "What reminders did I set earlier today?" or "Can you play the same playlist I requested this morning?", the system can accurately retrieve and reference past requests.
 
-### OUTPUT
+## OUTPUT
 At the end of the conversation, the local history is stored in a global SQL database, enabling persistent memory through RAG for future interactions. A final response is then delivered using PlayAI for a natural, human-like voice before the system automatically exits.
 
-### USE CASES
+## USE CASES
 
 <p align="center">
   <img width="100%" alt="alt-text" src="https://github.com/user-attachments/assets/19abf663-f51e-49ff-b521-51fd42ddc8d4" />
