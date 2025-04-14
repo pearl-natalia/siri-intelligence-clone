@@ -1,4 +1,7 @@
 # Swift - A Voice Assistant for MacBooks
+<p align="center">
+  <img width="50%" alt="alt-text" src="https://github.com/user-attachments/assets/ac82068c-e2bd-4079-8f95-f69e0e99bd19"  />
+</p>
 
 ## Overview
 Swift is an AI assistant for MacBooks, inspired by what Siri could become with Apple Intelligence by 2026. It processes voice commands by breaking them down into executable AppleScript actions via AI agents.
