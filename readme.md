@@ -20,7 +20,7 @@ Then, the agent uses chain-of-thought reasoning to break down the request into s
 
 #### EXAMPLE 
 - Input: "Cancel my meeting tmrw"
-- Chain-of-thought"
+- Chain-of-thought:
     1. Find all events from Calendar happening tomorrow 
     2. Determine which of these events can be a meeting based on the event name
         - If only 1 "meeting" event, cancel it
@@ -41,7 +41,7 @@ The agent combines live location info (core location) with a weather API to get 
 For all communication-related tasks, the agent utilizes contact information to identify the intended recipient. By outputting your contacts list and performing a phonetic similarity search, Swift can accurately determine which contact you're referencing, even if the transcription differs from the actual spelling. This approach also enables you to send emails by simply mentioning a name rather than verbally stating the full email address. 
 
 #### iMessage
-o generate iMessage responses that match the user's style, the last few iMessages are analyzed to capture the tone, structure (e.g., capitalization), formality, and context of the conversation. A SQL database also tracks the top N most frequently used words and phrases by the user, which reflect their personality and communication style (such as preferred expressions or specific spelling). These insights are then used to make future responses align more closely with the user's way of communicating.
+To generate iMessage responses that match the user's style, the last few iMessages are analyzed to capture the tone, structure (e.g., capitalization), formality, and context of the conversation. A SQL database also tracks the top N most frequently used words and phrases by the user, which reflect their personality and communication style (such as preferred expressions or specific spelling). These insights are then used to make future responses align more closely with the user's way of communicating.
 
 #### LLM
 This category handles conversational and inquiry-based requests. Since it's conversation-driven, the LLM will continue engaging with the user until they close the voice assistant. The interaction is stored locally for faster retrieval and provided as history to Gemini, ensuring detailed long-term memory throughout the conversation.
