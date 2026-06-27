@@ -1,8 +1,9 @@
 import sys, json
 from transcription.speech import speech
 from transcription.transcribe import transcribe
-from model import add_user_message, add_assistant_message
+from model import add_user_message, add_assistant_message, get_history
 import agent
+import memory
 
 
 def _get_content():
@@ -41,5 +42,8 @@ def decision():
 
 
 if __name__ == "__main__":
-    while True:
-        decision()
+    try:
+        while True:
+            decision()
+    finally:
+        memory.save_session(get_history())

@@ -1,27 +1,22 @@
-"""
-Tool-calling agent loop.
+# Agent loop. Calls Gemini with all tools, executes whatever tool it picks,
+# feeds the result back, and repeats until Gemini returns plain text.
 
-Single entry point: agent.run(user_input, settings) → spoken response string.
-
-Flow:
-  1. Build contents from conversation history + user input
-  2. Call Gemini with all tool declarations
-  3. If Gemini picks a tool → execute it → feed result back → repeat (max 5 iterations)
-  4. When Gemini returns plain text → that's the spoken response
-"""
-
-import json
+import json, time
 from datetime import datetime
 from google.genai import types
 from model import generate, get_history
 from tools import TOOLS, execute_tool
+import memory
+import eval
 
 
-def _system_prompt(settings: dict) -> str:
+def _system_prompt(settings: dict, query: str) -> str:
     name = settings.get("llm name", "Swift")
     user = settings.get("user_first_name", "there")
     now = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-    return (
+    past_context = memory.load_context(query)
+
+    prompt = (
         f"You are {name}, an AI voice assistant for macOS. "
         f"The user's name is {user}. "
         "Your responses will be read aloud, so keep them to 1-2 concise sentences. "
@@ -31,16 +26,16 @@ def _system_prompt(settings: dict) -> str:
         f"Current date and time: {now}. "
         f"User settings: {json.dumps(settings)}"
     )
+    if past_context:
+        prompt += f"\n\n{past_context}"
+    return prompt
 
 
 def run(user_input: str, settings: dict) -> str:
-    """
-    Run the agent for a single user turn. Returns the spoken response string.
-    Supports multi-tool chaining (e.g. 'cancel meeting AND text John').
-    """
-    system_prompt = _system_prompt(settings)
+    system_prompt = _system_prompt(settings, user_input)
+    start = time.time()
+    tool_used = None
 
-    # Build conversation contents from short-term history
     contents = []
     for entry in get_history():
         contents.append(types.Content(
@@ -52,42 +47,53 @@ def run(user_input: str, settings: dict) -> str:
         parts=[types.Part.from_text(text=user_input)]
     ))
 
-    for iteration in range(5):
-        response = generate(contents, tools=TOOLS, system_instruction=system_prompt)
-        candidate = response.candidates[0]
+    try:
+        for _ in range(5):
+            response = generate(contents, tools=TOOLS, system_instruction=system_prompt)
+            candidate = response.candidates[0]
 
-        # Parse the response parts
-        function_calls = []
-        text_parts = []
-        for part in candidate.content.parts:
-            if hasattr(part, "function_call") and part.function_call:
-                function_calls.append(part.function_call)
-            elif hasattr(part, "text") and part.text:
-                text_parts.append(part.text)
+            function_calls = []
+            text_parts = []
+            for part in candidate.content.parts:
+                if hasattr(part, "function_call") and part.function_call:
+                    function_calls.append(part.function_call)
+                elif hasattr(part, "text") and part.text:
+                    text_parts.append(part.text)
 
-        # No tool calls → final spoken response
-        if not function_calls:
-            return "".join(text_parts).strip()
+            if not function_calls:
+                result = "".join(text_parts).strip()
+                eval.log(user_input, tool_used or "llm", success=True, latency_ms=int((time.time()-start)*1000))
+                return result
 
-        # Add the model's response (with function calls) to contents
-        contents.append(candidate.content)
+            contents.append(candidate.content)
 
-        # Execute every tool call and collect results
-        result_parts = []
-        for fc in function_calls:
-            args = dict(fc.args)
-            print(f"[Tool] {fc.name}({args})")
-            result = execute_tool(fc.name, args)
-            print(f"[Tool] → {result}")
-            result_parts.append(
-                types.Part(
-                    function_response=types.FunctionResponse(
-                        name=fc.name,
-                        response={"result": result},
+            result_parts = []
+            for fc in function_calls:
+                args = dict(fc.args)
+                tool_used = fc.name
+                print(f"[Tool] {fc.name}({args})")
+                tool_result = execute_tool(fc.name, args)
+                print(f"[Tool] → {tool_result}")
+                eval.log(
+                    user_input, fc.name,
+                    success=tool_result["success"],
+                    latency_ms=int((time.time() - start) * 1000),
+                    error=tool_result["message"] if not tool_result["success"] else None,
+                )
+                result_parts.append(
+                    types.Part(
+                        function_response=types.FunctionResponse(
+                            name=fc.name,
+                            response={"result": tool_result["message"]},
+                        )
                     )
                 )
-            )
 
-        contents.append(types.Content(role="user", parts=result_parts))
+            contents.append(types.Content(role="user", parts=result_parts))
 
+    except Exception as e:
+        eval.log(user_input, tool_used or "llm", success=False, latency_ms=int((time.time()-start)*1000), error=str(e))
+        raise
+
+    eval.log(user_input, tool_used or "llm", success=False, latency_ms=int((time.time()-start)*1000), error="max iterations reached")
     return "I wasn't able to complete that request."
