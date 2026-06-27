@@ -1,60 +1,56 @@
-import os, sqlite3
+import os
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
+load_dotenv()
+
 conversation_history = []
 MAX_HISTORY = 20
-# Short term history
+
+
 def add_user_message(content):
     conversation_history.append({"role": "user", "content": content})
-    trim_history()
+    _trim_history()
 
 def add_assistant_message(content):
     conversation_history.append({"role": "assistant", "content": content})
-    trim_history()
+    _trim_history()
 
-def trim_history():
+def _trim_history():
     global conversation_history
     conversation_history = conversation_history[-MAX_HISTORY:]
 
 def get_history():
     return conversation_history
 
-def model(prompt, tmp, short_term_history=False):
-    load_dotenv()
+
+def _client() -> genai.Client:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("API key is missing. Make sure it's in your .env file.")
-    
-    client = genai.Client(api_key=api_key)
-    model = "gemini-2.0-flash"
-    
+        raise ValueError("GEMINI_API_KEY missing from .env")
+    return genai.Client(api_key=api_key)
+
+
+def model(prompt: str, tmp: float, short_term_history: bool = False) -> str:
+    """Streaming text call — used by individual action modules."""
+    client = _client()
+    model_id = "gemini-2.0-flash"
+
     contents = []
-    
-    # History
     if short_term_history:
         for entry in conversation_history:
-            contents.append(
-                types.Content(
-                    role=entry["role"],
-                    parts=[types.Part.from_text(text=entry["content"])]
-                )
-            )
+            contents.append(types.Content(
+                role=entry["role"],
+                parts=[types.Part.from_text(text=entry["content"])]
+            ))
 
-    # Prompt
-    contents.append(
-        types.Content(
-            role="user",
-            parts=[
-                types.Part.from_text(
-                    text = prompt,
-                ),
-            ],
-        ),
-    )
-    
-    generate_content_config = types.GenerateContentConfig(
+    contents.append(types.Content(
+        role="user",
+        parts=[types.Part.from_text(text=prompt)],
+    ))
+
+    config = types.GenerateContentConfig(
         temperature=tmp,
         top_p=0.95,
         top_k=40,
@@ -62,16 +58,38 @@ def model(prompt, tmp, short_term_history=False):
         response_mime_type="text/plain",
     )
 
-    model_response = ""
+    response_text = ""
     for chunk in client.models.generate_content_stream(
-        model=model,
+        model=model_id,
         contents=contents,
-        config=generate_content_config,
+        config=config,
     ):
-        model_response += chunk.text 
+        response_text += chunk.text
 
-    if model_response.startswith("```"):
-        model_response = model_response[3:].strip()
-    if model_response.endswith("```"):
-        model_response = model_response[:-3].strip()
-    return model_response.strip()
+    response_text = response_text.strip()
+    if response_text.startswith("```"):
+        response_text = response_text[3:].strip()
+    if response_text.endswith("```"):
+        response_text = response_text[:-3].strip()
+    return response_text.strip()
+
+
+def generate(
+    contents: list,
+    tools: list = None,
+    system_instruction: str = None,
+    temperature: float = 1.0,
+):
+    """Non-streaming call for the agent loop (supports function calling)."""
+    client = _client()
+    config_kwargs = {"temperature": temperature}
+    if tools:
+        config_kwargs["tools"] = tools
+    if system_instruction:
+        config_kwargs["system_instruction"] = system_instruction
+
+    return client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=contents,
+        config=types.GenerateContentConfig(**config_kwargs),
+    )

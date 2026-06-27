@@ -185,13 +185,24 @@ def phone_number_to_email(phone_number):
     email = subprocess.run(['osascript', '-e', apple_script], capture_output=True, text=True).stdout.strip()
     return email
 
+def name_to_phone_number(name: str):
+    """Resolve a name to a phone number string, or None if not found."""
+    match = find_similar_contact(name)
+    if match.strip() == "No match":
+        return None
+    parts = [p.strip() for p in match.split(",", 1)]
+    first = parts[0]
+    last = parts[1].strip('"') if len(parts) > 1 else ""
+    return get_phone_number(first, last)
+
+
 def get_email(contact):
     prompt = f"""
                 Your job is to take the following contact: {contact} 
                 and determine if it is an email, phone number, or name. 
                 If it is a phone number, return 'phone number'. If it is an email, return 'email'. Otherwise, return 'name'.
                  
-                Return either 'phone number', 'name', or 'name' in all lowercase letters. Do not return any additional text.
+                Return either 'phone number', 'email', or 'name' in all lowercase letters. Do not return any additional text.
 
                 <EXAMPLE>
                     <INPUT>

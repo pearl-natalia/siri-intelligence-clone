@@ -135,45 +135,35 @@ def agent(user_request, history, current_info):
     response = model(prompt, 1.5)
     return response
 
-def agent_reply(user_request, llm_responses, information):
-    prompt =    f"""
-                You are an AI assistant who was given a request related th Apple Calendar by the user and have already performed the action. 
-                Generate a very concise, friendly response based on the user request and the outcome. Only output the response as it will directly be transcribed.
+def agent_reply(user_request, llm_responses, information) -> str:
+    prompt = f"""
+                You are an AI assistant who was given a request related to Apple Calendar and have already performed the action.
+                Generate a very concise, friendly response based on the user request and the outcome. Only output the response as it will directly be read aloud.
                 Here is the user's request: {user_request}
                 For context, here is the information gathered: {information}.
                 Here are the previous assistant responses: {llm_responses}.
-
-                If the user request is refering to a prevous conversation, refer to the previous conversation: {get_history()}.
+                If the user request is referring to a previous conversation: {get_history()}.
                 """
-    response = model(prompt, 1.5)
-    speech(response)
+    return model(prompt, 1.5)
 
 
-def calendar(user_request):
+def calendar(user_request) -> str:
     llm_responses = []
     information = []
     counter = 7
 
-    while True:
+    while counter > 0:
         reply = agent(user_request, llm_responses, information).strip()
         if reply.endswith("done generating output"):
             result = run_applescript(reply).strip()
-            information.append(result)
+            if result:
+                information.append(result)
             break
         llm_responses.append(reply)
         result = run_applescript(reply).strip()
-        if result != None and result != "":
+        if result:
             information.append(result)
-        counter -=1
-        if counter == 0:
-            break
-    
-    # LLM Response
-    if len(llm_responses) == 0: 
-        llm_responses = []
-    elif len(llm_responses) == 1: 
-        llm_responses = llm_responses[0]
-    else:
-        llm_responses = llm_responses.slice(-2)
-    
-    agent_reply(user_request, llm_responses, information)
+        counter -= 1
+
+    recent_responses = llm_responses[-2:] if len(llm_responses) > 1 else llm_responses
+    return agent_reply(user_request, recent_responses, information)
