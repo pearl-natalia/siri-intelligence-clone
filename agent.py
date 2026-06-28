@@ -1,13 +1,14 @@
 # Agent loop. Calls Gemini with all tools, executes whatever tool it picks,
 # feeds the result back, and repeats until Gemini returns plain text.
 
-import json, time
+import json, time, base64
 from datetime import datetime
 from google.genai import types
 from model import generate, get_history
 from tools import TOOLS, execute_tool
 import memory
 import eval
+import context
 
 
 def _system_prompt(settings: dict, query: str) -> str:
@@ -32,7 +33,8 @@ def _system_prompt(settings: dict, query: str) -> str:
 
 
 def run(user_input: str, settings: dict) -> str:
-    system_prompt = _system_prompt(settings, user_input)
+    augmented_input, screenshot = context.build_context(user_input)
+    system_prompt = _system_prompt(settings, augmented_input)
     start = time.time()
     tool_used = None
 
@@ -42,10 +44,15 @@ def run(user_input: str, settings: dict) -> str:
             role=entry["role"],
             parts=[types.Part.from_text(text=entry["content"])]
         ))
-    contents.append(types.Content(
-        role="user",
-        parts=[types.Part.from_text(text=user_input)]
-    ))
+
+    # Build the user turn — attach screenshot as image if present
+    user_parts = [types.Part.from_text(text=augmented_input)]
+    if screenshot:
+        user_parts.append(types.Part.from_bytes(
+            data=base64.b64decode(screenshot),
+            mime_type="image/png"
+        ))
+    contents.append(types.Content(role="user", parts=user_parts))
 
     try:
         for _ in range(5):

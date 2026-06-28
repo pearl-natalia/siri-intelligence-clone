@@ -1,0 +1,69 @@
+import subprocess, base64, tempfile, os, json
+
+
+def get_clipboard() -> str:
+    result = subprocess.run(["pbpaste"], capture_output=True, text=True)
+    return result.stdout.strip()
+
+
+def get_screenshot_base64() -> str:
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        path = f.name
+    subprocess.run(["screencapture", "-x", path], capture_output=True)
+    with open(path, "rb") as f:
+        data = base64.b64encode(f.read()).decode()
+    os.unlink(path)
+    return data
+
+
+def _needs_context(user_input: str) -> dict:
+    from model import _get_client
+    from google.genai import types
+
+    client = _get_client()
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=user_input,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "needs_clipboard": {"type": "boolean"},
+                    "needs_screenshot": {"type": "boolean"},
+                },
+                "required": ["needs_clipboard", "needs_screenshot"],
+            },
+            system_instruction=(
+                "Determine whether answering this voice command requires "
+                "reading the user's clipboard or taking a screenshot of their screen. "
+                "Return needs_clipboard=true if the user references copied text, 'this', 'that', or selected content. "
+                "Return needs_screenshot=true if the user references their screen, what they're looking at, or visible content."
+            ),
+            temperature=0.0,
+        ),
+    )
+    return json.loads(response.text)
+
+
+def build_context(user_input: str) -> tuple:
+    # Returns (augmented_input, screenshot_base64_or_None)
+    try:
+        flags = _needs_context(user_input)
+    except Exception:
+        return user_input, None
+
+    extra = []
+    screenshot = None
+
+    if flags.get("needs_clipboard"):
+        clipboard = get_clipboard()
+        if clipboard:
+            extra.append(f"[Clipboard content: {clipboard}]")
+
+    if flags.get("needs_screenshot"):
+        screenshot = get_screenshot_base64()
+        extra.append("[Screenshot attached]")
+
+    augmented = user_input + "\n" + "\n".join(extra) if extra else user_input
+    return augmented, screenshot
