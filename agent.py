@@ -2,6 +2,7 @@
 # feeds the result back, and repeats until Gemini returns plain text.
 
 import json, time, base64
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from google.genai import types
 from model import generate, get_history
@@ -11,11 +12,10 @@ import eval
 import context
 
 
-def _system_prompt(settings: dict, query: str) -> str:
+def _system_prompt(settings: dict, past_context: str) -> str:
     name = settings.get("llm name", "Swift")
     user = settings.get("user_first_name", "there")
     now = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-    past_context = memory.load_context(query)
 
     prompt = (
         f"You are {name}, an AI voice assistant for macOS. "
@@ -33,9 +33,16 @@ def _system_prompt(settings: dict, query: str) -> str:
 
 
 def run(user_input: str, settings: dict) -> str:
-    augmented_input, screenshot = context.build_context(user_input)
-    system_prompt = _system_prompt(settings, augmented_input)
     start = time.time()
+
+    # context enrichment and RAG retrieval run in parallel
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        ctx_future = ex.submit(context.build_context, user_input)
+        rag_future = ex.submit(memory.load_context, user_input)
+
+    augmented_input, screenshot = ctx_future.result()
+    past_context = rag_future.result()
+    system_prompt = _system_prompt(settings, past_context)
     tool_used = None
 
     contents = []

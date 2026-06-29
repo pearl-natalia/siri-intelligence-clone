@@ -1,40 +1,52 @@
 import whisper, time, threading, os, warnings
 import sounddevice as sd
 import numpy as np
+import torch
 
-def transcribe(SILENCE_DURATION = 2):
-    # Audio parameters
+def _load_vad():
+    model, utils = torch.hub.load(
+        repo_or_dir="snakers4/silero-vad",
+        model="silero_vad",
+        force_reload=False,
+        trust_repo=True,
+    )
+    return model
+
+def transcribe(SILENCE_DURATION = 3):
+    # Audio parameters — 512-sample chunks required by Silero VAD at 16kHz
     RATE = 16000
     CHANNELS = 1
-    CHUNK = 1024
-    SILENCE_THRESHOLD = 0.5
+    CHUNK = 512
 
-    model = whisper.load_model("base")
+    whisper_model = whisper.load_model("base")
+    vad_model = _load_vad()
     warnings.filterwarnings("ignore", message="FP16 is not supported on CPU; using FP32 instead")
     recorded_audio = []
-    last_sound_time = time.time()
+    last_speech_time = time.time()
 
-    running = True  # Define running here inside the function
+    running = True
 
     def audio_callback(indata, frames, time_info, status):
-        nonlocal last_sound_time  # Access the last_sound_time variable from the enclosing function
+        nonlocal last_speech_time
         if status:
             print(status)
 
         audio_chunk = indata.copy()
         recorded_audio.append(audio_chunk)
 
-        volume_norm = np.linalg.norm(audio_chunk)  
-        if volume_norm > SILENCE_THRESHOLD:
-            last_sound_time = time.time()
+        # Run VAD on this 512-sample chunk
+        tensor = torch.from_numpy(audio_chunk.flatten()).float()
+        speech_prob = vad_model(tensor, RATE).item()
+        if speech_prob > 0.5:
+            last_speech_time = time.time()
 
     def silence_monitor():
-        nonlocal running  # Access the running variable from the enclosing function
+        nonlocal running
         while running:
-            if time.time() - last_sound_time > SILENCE_DURATION:
+            if time.time() - last_speech_time > SILENCE_DURATION:
                 print("Silence detected. Stopping recording...")
                 running = False
-            time.sleep(0.5)
+            time.sleep(0.3)
 
     try:
         print("\nRecording... Speak into the mic. Press Ctrl+C to stop manually.")
@@ -48,11 +60,9 @@ def transcribe(SILENCE_DURATION = 2):
     except KeyboardInterrupt:
         print("Manual stop detected. Finishing up...")
 
-    # Concatenate all recorded audio chunks into a single array
     full_recording = np.concatenate(recorded_audio, axis=0).flatten().astype(np.float32)
 
-    # Transcription
-    result = model.transcribe(full_recording, language='en')
+    result = whisper_model.transcribe(full_recording, language='en')
     transcription = result["text"].strip()
     with open(os.path.join(os.path.dirname(__file__), "transcription.txt"), "w") as file:
         file.write(transcription + "\n")

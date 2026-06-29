@@ -35,7 +35,11 @@ def decision():
     print(f"User: {content}")
     add_user_message(content)
 
-    response = agent.run(content, settings)
+    try:
+        response = agent.run(content, settings)
+    except Exception as e:
+        print(f"[Error] {e}")
+        response = "Sorry, something went wrong. Please try again."
 
     add_assistant_message(response)
     speech(response)

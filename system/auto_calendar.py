@@ -4,17 +4,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../tran
 from model import model, get_history
 from speech import speech
 from datetime import datetime
+from react import run_applescript as _run_applescript
 
 def run_applescript(script):
-    result = re.search(r"```applescript\n?(.*?)(```|$)", script.strip(), re.DOTALL)
-    if result:
-        script = result.group(1).strip()
-    process = subprocess.run(
-        ['osascript', '-e', script],
-        capture_output=True, text=True
-    )
-
-    return process.stdout.strip()
+    _, output, _ = _run_applescript(script)
+    return output
 
 def agent(user_request, history, current_info):
     prompt = f"""

@@ -1,16 +1,17 @@
 # Persistent memory using RAG.
-# Each conversation turn gets embedded and stored in ChromaDB at session end.
-# On each new request, the current query is embedded and the most similar
-# past turns are pulled and added to the system prompt.
+# At session end, Gemini extracts facts about the user from the conversation.
+# Each fact is embedded and stored in ChromaDB.
+# On each new request, the query is embedded and the most relevant facts
+# are retrieved and added to the system prompt.
 
-import os, uuid, time
+import os, uuid
 from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "memory_db")
-TOP_K = 5  # number of past turns to retrieve per query
+TOP_K = 5
 
 
 def _collection():
@@ -28,28 +29,37 @@ def _embed(texts: list) -> list:
     return model.encode(texts, convert_to_numpy=True).tolist()
 
 
+def _extract_facts(history: list) -> list[str]:
+    from model import model
+    conversation = "\n".join(f"{e['role']}: {e['content']}" for e in history)
+    raw = model(
+        f"Extract factual preferences, habits, and personal details about the user from this conversation. "
+        f"Return one fact per line, plain text, no bullets or numbering. "
+        f"Only include concrete facts (e.g. 'User prefers jazz', 'User wakes at 7am'). "
+        f"Ignore small talk, greetings, and one-off requests.\n\n{conversation}",
+        0.0,
+    )
+    return [f.strip() for f in raw.splitlines() if f.strip()]
+
+
 def save_session(history: list) -> None:
     if len(history) < 2:
+        return
+
+    facts = _extract_facts(history)
+    if not facts:
         return
 
     session_id = str(uuid.uuid4())
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     collection = _collection()
+    embeddings = _embed(facts)
 
-    texts = [entry["content"] for entry in history]
-    embeddings = _embed(texts)
+    ids = [f"{session_id}_{i}" for i in range(len(facts))]
+    metadatas = [{"session_id": session_id, "timestamp": ts} for _ in facts]
 
-    ids, metadatas = [], []
-    for i, entry in enumerate(history):
-        ids.append(f"{session_id}_{i}")
-        metadatas.append({
-            "session_id": session_id,
-            "timestamp": ts,
-            "role": entry["role"],
-            "index": i,
-        })
-
-    collection.add(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
+    collection.add(ids=ids, embeddings=embeddings, documents=facts, metadatas=metadatas)
+    print(f"[Memory] Saved {len(facts)} facts from this session.")
 
 
 def load_context(query: str) -> str:
@@ -64,16 +74,10 @@ def load_context(query: str) -> str:
         include=["documents", "metadatas"],
     )
 
-    docs = results["documents"][0]
-    metas = results["metadatas"][0]
-
-    if not docs:
+    facts = results["documents"][0]
+    if not facts:
         return ""
 
-    lines = ["Relevant past context:"]
-    for doc, meta in zip(docs, metas):
-        role = meta.get("role", "unknown").capitalize()
-        ts = meta.get("timestamp", "")
-        lines.append(f"[{ts}] {role}: {doc}")
-
+    lines = ["Facts about the user:"]
+    lines.extend(facts)
     return "\n".join(lines)

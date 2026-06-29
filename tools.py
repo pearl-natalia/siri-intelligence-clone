@@ -140,6 +140,47 @@ _DECLARATIONS = [
         },
     },
     {
+        "name": "finder",
+        "description": "Control Finder: open folders, find files, move or rename files, reveal items in Finder.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "The Finder task to perform, e.g. 'open downloads folder', 'find my resume'.",
+                },
+            },
+            "required": ["task"],
+        },
+    },
+    {
+        "name": "manage_contacts",
+        "description": "Look up, add, or update contacts in the Apple Contacts app.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["lookup", "add", "update"],
+                    "description": "'lookup' to get contact info, 'add' to create a new contact, 'update' to change existing info.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "The contact's name.",
+                },
+                "field": {
+                    "type": "string",
+                    "description": "What to look up or update: 'phone', 'email', 'address'.",
+                },
+                "value": {
+                    "type": "string",
+                    "description": "The value to set when adding or updating.",
+                },
+            },
+            "required": ["action", "name"],
+        },
+    },
+    {
         "name": "create_reminder",
         "description": "Create a reminder in the Apple Reminders app.",
         "parameters": {
@@ -191,6 +232,8 @@ def execute_tool(name: str, args: dict) -> dict:
         "send_imessage":          _send_imessage,
         "send_email":             _send_email,
         "create_reminder":        _create_reminder,
+        "finder":                 _finder,
+        "manage_contacts":        _manage_contacts,
         "start_facetime":         _start_facetime,
     }
     fn = dispatch.get(name)
@@ -255,17 +298,11 @@ def _get_weather(city: str, forecast_type: str) -> dict:
 def _get_time(city: str) -> dict:
     if city.lower() == "current":
         return _ok(datetime.now().strftime("%I:%M %p on %A, %B %d, %Y"))
-    from model import model
-    script = model(
-        f'Generate an osascript to get the current date and time in {city}. '
-        'Only output the AppleScript string, nothing else. '
-        'Example for Dubai: return do shell script "TZ=Asia/Dubai date"',
-        1.0
+    from react import applescript_loop
+    return applescript_loop(
+        f"Get the current date and time in {city} and return it as a string.",
+        system_context='Example for Dubai: return do shell script "TZ=Asia/Dubai date"'
     )
-    r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-    if r.returncode == 0:
-        return _ok(r.stdout.strip())
-    return _err(f"Could not get time for {city}: {r.stderr.strip()}")
 
 
 def _control_music(action: str, query: str = None, music_type: str = None) -> dict:
@@ -303,11 +340,15 @@ def _manage_calendar(request: str) -> dict:
 
 
 def _execute_system_command(task: str) -> dict:
-    from system.system import adjust_system
-    result = adjust_system(task)
-    if result.startswith("System command failed") or result.startswith("I can't"):
-        return _err(result)
-    return _ok(result)
+    from react import applescript_loop
+    from system.system import get_location
+    from datetime import datetime
+    context = (
+        f"Today is {datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}. "
+        f"Current location: {get_location()}. "
+        f"User settings: {json.load(open('settings.json'))}"
+    )
+    return applescript_loop(task, system_context=context)
 
 
 def _send_imessage(contact: str, message: str) -> dict:
@@ -361,6 +402,51 @@ end tell'''
         msg = f"Reminder set: '{task}'" + (f" at {time}." if time else ".")
         return _ok(msg)
     return _err(f"Failed to create reminder: {r.stderr.strip()}")
+
+
+def _finder(task: str) -> dict:
+    from react import applescript_loop
+    return applescript_loop(task, system_context="You are controlling Finder on macOS.")
+
+
+def _manage_contacts(action: str, name: str, field: str = None, value: str = None) -> dict:
+    from communication.find_contact import find_similar_contact, get_phone_number, name_to_email
+
+    if action == "lookup":
+        match = find_similar_contact(name)
+        if match.strip() == "No match":
+            return _err(f"No contact found for '{name}'.")
+        parts = [p.strip() for p in match.split(",", 1)]
+        first = parts[0]
+        last = parts[1].strip('"') if len(parts) > 1 else ""
+        if not field or field == "phone":
+            phone = get_phone_number(first, last)
+            return _ok(f"{first} {last}: {phone}") if phone else _err(f"No phone number for {name}.")
+        if field == "email":
+            email = name_to_email(first, last)
+            return _ok(f"{first} {last}: {email}") if email else _err(f"No email for {name}.")
+        return _err(f"Unknown field: {field}")
+
+    if action == "add":
+        if not value:
+            return _err("A value is required to add a contact.")
+        script = f'''tell application "Contacts"
+    set newPerson to make new person with properties {{first name:"{name}"}}
+    make new phone at end of phones of newPerson with properties {{value:"{value}", label:"mobile"}}
+    save
+end tell'''
+        r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+        return _ok(f"Contact '{name}' added.") if r.returncode == 0 else _err(r.stderr.strip())
+
+    if action == "update":
+        if not value or not field:
+            return _err("Both field and value are required to update a contact.")
+        from react import applescript_loop
+        return applescript_loop(
+            f"Update the {field} of contact '{name}' to '{value}' in the Contacts app."
+        )
+
+    return _err(f"Unknown action: {action}")
 
 
 def _start_facetime(contact: str) -> dict:

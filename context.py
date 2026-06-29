@@ -1,9 +1,16 @@
-import subprocess, base64, tempfile, os, json
+import subprocess, base64, tempfile, os, json, time
 
 
 def get_clipboard() -> str:
-    result = subprocess.run(["pbpaste"], capture_output=True, text=True)
-    return result.stdout.strip()
+    previous = subprocess.run(["pbpaste"], capture_output=True, text=True).stdout
+    subprocess.run(
+        ["osascript", "-e", 'tell application "System Events" to keystroke "c" using command down'],
+        capture_output=True,
+    )
+    time.sleep(0.1)
+    selected = subprocess.run(["pbpaste"], capture_output=True, text=True).stdout.strip()
+    subprocess.run(["pbcopy"], input=previous, text=True)
+    return selected if selected != previous.strip() else previous.strip()
 
 
 def get_screenshot_base64() -> str:
