@@ -42,16 +42,7 @@ def run(user_input: str, settings: dict) -> str:
         if not clarified.get("resolved"):
             eval.log(user_input, "clarification", success=False, latency_ms=int((time.time()-start)*1000), error=clarified["message"])
             return clarified["message"]
-        tool_used = clarified["action_name"]
-        tool_result = execute_tool(tool_used, clarified["args"])
-        eval.log(
-            user_input,
-            tool_used,
-            success=tool_result["success"],
-            latency_ms=int((time.time()-start)*1000),
-            error=tool_result["message"] if not tool_result["success"] else None,
-        )
-        return tool_result["message"]
+        user_input = f"{user_input}\n{clarified['message']}"
 
     confirmation = policy.resolve_confirmation(user_input)
     if confirmation.get("matched"):

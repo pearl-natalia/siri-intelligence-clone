@@ -84,9 +84,14 @@ def resolve(user_input: str) -> dict:
     selected = _full_name(matches[0])
     args = dict(pending["args"])
     args[pending["contact_field"]] = selected
+    original = pending["args"].get(pending["contact_field"], "")
     return {
         "matched": True,
         "resolved": True,
         "action_name": pending["action_name"],
         "args": args,
+        "message": (
+            f"Clarification: for the previous {pending['action_name']} request, "
+            f"the user meant {selected} instead of {original}."
+        ),
     }

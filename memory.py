@@ -12,6 +12,7 @@ load_dotenv()
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "memory_db")
 TOP_K = 5
+DUPLICATE_DISTANCE_THRESHOLD = 0.30  # roughly cosine similarity >= 0.70
 
 
 def _collection():
@@ -42,6 +43,21 @@ def _extract_facts(history: list) -> list[str]:
     return [f.strip() for f in raw.splitlines() if f.strip()]
 
 
+def _is_duplicate_fact(collection, fact: str, embedding: list) -> bool:
+    if collection.count() == 0:
+        return False
+
+    results = collection.query(
+        query_embeddings=[embedding],
+        n_results=1,
+        include=["distances"],
+    )
+    distances = results.get("distances") or [[]]
+    if not distances[0]:
+        return False
+    return distances[0][0] <= DUPLICATE_DISTANCE_THRESHOLD
+
+
 def save_session(history: list) -> None:
     if len(history) < 2:
         return
@@ -55,11 +71,21 @@ def save_session(history: list) -> None:
     collection = _collection()
     embeddings = _embed(facts)
 
-    ids = [f"{session_id}_{i}" for i in range(len(facts))]
-    metadatas = [{"session_id": session_id, "timestamp": ts} for _ in facts]
+    new_facts, new_embeddings = [], []
+    for fact, embedding in zip(facts, embeddings):
+        if not _is_duplicate_fact(collection, fact, embedding):
+            new_facts.append(fact)
+            new_embeddings.append(embedding)
 
-    collection.add(ids=ids, embeddings=embeddings, documents=facts, metadatas=metadatas)
-    print(f"[Memory] Saved {len(facts)} facts from this session.")
+    if not new_facts:
+        print("[Memory] No new facts to save.")
+        return
+
+    ids = [f"{session_id}_{i}" for i in range(len(new_facts))]
+    metadatas = [{"session_id": session_id, "timestamp": ts} for _ in new_facts]
+
+    collection.add(ids=ids, embeddings=new_embeddings, documents=new_facts, metadatas=metadatas)
+    print(f"[Memory] Saved {len(new_facts)} facts from this session.")
 
 
 def load_context(query: str) -> str:
