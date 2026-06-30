@@ -10,6 +10,7 @@ from tools import TOOLS, execute_tool
 import memory
 import eval
 import context
+import policy
 
 
 def _system_prompt(settings: dict, past_context: str) -> str:
@@ -34,6 +35,21 @@ def _system_prompt(settings: dict, past_context: str) -> str:
 
 def run(user_input: str, settings: dict) -> str:
     start = time.time()
+    confirmation = policy.resolve_confirmation(user_input)
+    if confirmation.get("matched"):
+        if not confirmation.get("approved"):
+            eval.log(user_input, "policy_confirmation", success=True, latency_ms=int((time.time()-start)*1000))
+            return confirmation["message"]
+        tool_used = confirmation["name"]
+        tool_result = execute_tool(tool_used, confirmation["args"])
+        eval.log(
+            user_input,
+            tool_used,
+            success=tool_result["success"],
+            latency_ms=int((time.time()-start)*1000),
+            error=tool_result["message"] if not tool_result["success"] else None,
+        )
+        return tool_result["message"]
 
     # context enrichment and RAG retrieval run in parallel
     with ThreadPoolExecutor(max_workers=2) as ex:
@@ -86,7 +102,11 @@ def run(user_input: str, settings: dict) -> str:
                 args = dict(fc.args)
                 tool_used = fc.name
                 print(f"[Tool] {fc.name}({args})")
-                tool_result = execute_tool(fc.name, args)
+                policy_result = policy.check_policy(fc.name, args)
+                if policy_result["decision"] == "allow":
+                    tool_result = execute_tool(fc.name, args)
+                else:
+                    tool_result = {"success": False, "message": policy_result["message"]}
                 print(f"[Tool] → {tool_result}")
                 eval.log(
                     user_input, fc.name,

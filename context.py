@@ -24,10 +24,10 @@ def get_screenshot_base64() -> str:
 
 
 def _needs_context(user_input: str) -> dict:
-    from model import _get_client
+    from model import _client
     from google.genai import types
 
-    client = _get_client()
+    client = _client()
     response = client.models.generate_content(
         model="gemini-2.0-flash",
         contents=user_input,
