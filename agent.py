@@ -11,6 +11,7 @@ import memory
 import eval
 import context
 import policy
+import clarification
 
 
 def _system_prompt(settings: dict, past_context: str) -> str:
@@ -23,6 +24,7 @@ def _system_prompt(settings: dict, past_context: str) -> str:
         f"The user's name is {user}. "
         "Your responses will be read aloud, so keep them to 1-2 concise sentences. "
         "Use the available tools to fulfill requests. "
+        "If required information is missing or the request is ambiguous, use ask_clarification instead of guessing. "
         "After a tool executes successfully, confirm what was done in one sentence. "
         "If you cannot fulfill a request, say so briefly. "
         f"Current date and time: {now}. "
@@ -35,6 +37,22 @@ def _system_prompt(settings: dict, past_context: str) -> str:
 
 def run(user_input: str, settings: dict) -> str:
     start = time.time()
+    clarified = clarification.resolve(user_input)
+    if clarified.get("matched"):
+        if not clarified.get("resolved"):
+            eval.log(user_input, "clarification", success=False, latency_ms=int((time.time()-start)*1000), error=clarified["message"])
+            return clarified["message"]
+        tool_used = clarified["action_name"]
+        tool_result = execute_tool(tool_used, clarified["args"])
+        eval.log(
+            user_input,
+            tool_used,
+            success=tool_result["success"],
+            latency_ms=int((time.time()-start)*1000),
+            error=tool_result["message"] if not tool_result["success"] else None,
+        )
+        return tool_result["message"]
+
     confirmation = policy.resolve_confirmation(user_input)
     if confirmation.get("matched"):
         if not confirmation.get("approved"):
@@ -102,6 +120,11 @@ def run(user_input: str, settings: dict) -> str:
                 args = dict(fc.args)
                 tool_used = fc.name
                 print(f"[Tool] {fc.name}({args})")
+                if fc.name == "ask_clarification":
+                    question = args.get("question", "Could you clarify what you mean?")
+                    eval.log(user_input, "ask_clarification", success=True, latency_ms=int((time.time() - start) * 1000))
+                    return question
+
                 policy_result = policy.check_policy(fc.name, args)
                 if policy_result["decision"] == "allow":
                     tool_result = execute_tool(fc.name, args)

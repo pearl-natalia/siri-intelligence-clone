@@ -11,6 +11,27 @@ load_dotenv()
 
 _DECLARATIONS = [
     {
+        "name": "ask_clarification",
+        "description": (
+            "Ask the user a short follow-up question when the request is ambiguous, "
+            "missing required information, or has multiple plausible interpretations."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The concise clarification question to ask the user.",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "What information is missing or ambiguous.",
+                },
+            },
+            "required": ["question"],
+        },
+    },
+    {
         "name": "get_weather",
         "description": "Get current or forecast weather for a city or the user's current location.",
         "parameters": {
@@ -224,6 +245,7 @@ TOOLS = [types.Tool(function_declarations=_DECLARATIONS)]
 def execute_tool(name: str, args: dict) -> dict:
     # Returns {"success": bool, "message": str}
     dispatch = {
+        "ask_clarification":      _ask_clarification,
         "get_weather":            _get_weather,
         "get_time":               _get_time,
         "control_music":          _control_music,
@@ -254,6 +276,10 @@ def _ok(message: str) -> dict:
 
 def _err(message: str) -> dict:
     return {"success": False, "message": message}
+
+
+def _ask_clarification(question: str, reason: str = None) -> dict:
+    return {"success": False, "message": question}
 
 
 def _get_weather(city: str, forecast_type: str) -> dict:
@@ -352,7 +378,17 @@ def _execute_system_command(task: str) -> dict:
 
 
 def _send_imessage(contact: str, message: str) -> dict:
-    from communication.find_contact import find_similar_contact, get_phone_number
+    import clarification
+    from communication.find_contact import get_contact_list, find_similar_contact, get_phone_number
+
+    candidates = clarification.contact_candidates(contact, get_contact_list())
+    if clarification.needs_contact_clarification(contact, candidates):
+        return clarification.ask_contact(
+            "send_imessage",
+            {"contact": contact, "message": message},
+            "contact",
+            candidates,
+        )
 
     match = find_similar_contact(contact)
     if match.strip() == "No match":
