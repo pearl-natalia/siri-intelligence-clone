@@ -7,3 +7,4 @@ system/.cache
 .cache
 to_do.txt
 popup.py
+outputs/
