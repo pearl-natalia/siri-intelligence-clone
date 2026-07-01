@@ -30,7 +30,7 @@ def generate_reply(phone_number, msgs):
     if len(high_freq_words) != 0:
         freq_prompt = f"Here are some common phrases, words, and/or emojis I like to use. If applicable and it makes sense, use some of these phrases/words/emojis. "
 
-    model = "gemini-2.0-flash"
+    model = "gemini-3.5-flash"
     contents = [
         types.Content(
             role="user",

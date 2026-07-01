@@ -14,9 +14,10 @@ def get_spotify_id(query, search_type):
     sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
     
     results = sp.search(q=query, limit=1, type=search_type)
-    if results[search_type + 's']['items']:
-        item = results[search_type + 's']['items'][0]
-        return item['id']  
+    items = (results or {}).get(search_type + "s", {}).get("items", []) or []
+    items = [item for item in items if item]
+    if items:
+        return items[0]["id"]
     return None
 
 def get_music_action(dialogue, llm_response):
