@@ -1,51 +1,64 @@
-import requests, os, pyaudio
+import os
+import subprocess
+from pathlib import Path
+
 from dotenv import load_dotenv
-from pydub import AudioSegment
 
-# def speech(dialogue):
-#     # API
-#     load_dotenv()
-#     api_key = os.getenv("PLAYAI_API_KEY")
-#     user_id = os.getenv("PLAYAI_USER_ID")
-#     path = "transcription/response.wav"
-#     if not api_key:
-#         raise ValueError("API key is missing. Please check your .env file.")
-#     if not user_id:
-#         raise ValueError("User ID is missing. Please check your .env file.")
 
-#     # Set up
-#     headers = {
-#         'Authorization': f'Bearer {api_key}',
-#         'Content-Type': 'application/json',
-#         'X-USER-ID': user_id  
-#     }
-#     json_data = {
-#         'model': 'PlayDialog',
-#         'text': dialogue,
-#         'voice': 's3://voice-cloning-zero-shot/baf1ef41-36b6-428c-9bdf-50ba54682bd8/original/manifest.json',
-#         'outputFormat': 'wav'
-#     }
+DEFAULT_VOICE_ID = "dtSEyYGNJqjrtBArPCVZ"
+DEFAULT_MODEL_ID = "eleven_v3"
 
-#     print(dialogue)
-#     response = requests.post('https://api.play.ai/api/v1/tts/stream', headers=headers, json=json_data)
-#     if response.status_code == 200:
-#         with open(path, 'wb') as f:
-#             f.write(response.content)
-#     else:
-#         print(f"Request failed with status code {response.status_code}: {response.text}")
 
-#     audio = AudioSegment.from_wav(path)
-#     p = pyaudio.PyAudio()
-#     stream = p.open(format=pyaudio.paInt16,
-#                     channels=1,
-#                     rate=audio.frame_rate,
-#                     output=True)
-#     for chunk in audio[::1024]:
-#         stream.write(chunk.raw_data)
-#     stream.stop_stream()
-#     stream.close()
-#     p.terminate()
+def _say(dialogue: str) -> None:
+    subprocess.run(["say", "-v", "Alex", dialogue], check=False)
+
+
+def _elevenlabs(dialogue: str) -> bool:
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    load_dotenv(env_path)
+    api_key = os.getenv("ELEVENLABS_API_KEY") or os.getenv("ELEVENLABS_API_KEY")
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_VOICE_ID)
+    model_id = os.getenv("ELEVENLABS_MODEL_ID", DEFAULT_MODEL_ID)
+    speed = float(os.getenv("ELEVENLABS_SPEED", "1.0"))
+    stability = float(os.getenv("ELEVENLABS_STABILITY", "0.5"))
+    similarity_boost = float(os.getenv("ELEVENLABS_SIMILARITY_BOOST", "0.75"))
+    style = float(os.getenv("ELEVENLABS_STYLE", "0.0"))
+    optimize_latency = os.getenv("ELEVENLABS_OPTIMIZE_LATENCY")
+
+    if not api_key:
+        print("ElevenLabs TTS skipped: ELEVENLABS_API_KEY or ELEVENLABS_API_KEY is missing.")
+        return False
+
+    try:
+        from elevenlabs.client import ElevenLabs
+        from elevenlabs.play import play
+        from elevenlabs.types.voice_settings import VoiceSettings
+
+        client = ElevenLabs(api_key=api_key)
+        request = {
+            "text": dialogue,
+            "voice_id": voice_id,
+            "model_id": model_id,
+            "output_format": "mp3_44100_128",
+            "voice_settings": VoiceSettings(
+                stability=stability,
+                similarity_boost=similarity_boost,
+                style=style,
+                speed=speed,
+                use_speaker_boost=True,
+            ),
+        }
+        if optimize_latency and model_id != "eleven_v3":
+            request["optimize_streaming_latency"] = int(optimize_latency)
+        audio = client.text_to_speech.convert(**request)
+        play(audio)
+        return True
+    except Exception as exc:
+        print(f"ElevenLabs TTS failed: {exc}")
+        return False
+
 
 def speech(dialogue):
     print("Brad: ", dialogue)
-    os.system(f'say -v Alex "{dialogue}"')
+    if not _elevenlabs(dialogue):
+        _say(dialogue)
