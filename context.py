@@ -29,7 +29,7 @@ def _needs_context(user_input: str) -> dict:
 
     client = _client()
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3.5-flash",
         contents=user_input,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",

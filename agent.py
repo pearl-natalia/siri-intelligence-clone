@@ -23,7 +23,14 @@ def _system_prompt(settings: dict, past_context: str) -> str:
         f"You are {name}, an AI voice assistant for macOS. "
         f"The user's name is {user}. "
         "Your responses will be read aloud, so keep them to 1-2 concise sentences. "
+        "Speak naturally and never use technical words such as 'query', 'tool', 'API', or 'parameter' in your replies. "
         "Use the available tools to fulfill requests. "
+        "For any weather question, including current weather, forecasts, hourly weather, rain, temperature, or outdoor timing, use get_weather instead of web_search. "
+        "Use web_search for current events, sports scores, news, or facts that may have changed recently. "
+        "After web_search returns useful results, answer from those results instead of searching again unless the result is clearly irrelevant. "
+        "For music requests, preserve the user's requested mood or genre exactly when possible; do not replace vague phrases like background music with study music unless the user asked for studying. "
+        "When the user asks to find a recipe, article, page, product, or source they will likely want to view, "
+        "call web_search with open_first_result=true so the best result opens in their browser. "
         "If required information is missing or the request is ambiguous, use ask_clarification instead of guessing. "
         "After a tool executes successfully, confirm what was done in one sentence. "
         "If you cannot fulfill a request, say so briefly. "
@@ -35,20 +42,22 @@ def _system_prompt(settings: dict, past_context: str) -> str:
     return prompt
 
 
-def run(user_input: str, settings: dict) -> str:
+def run(user_input: str, settings: dict) -> tuple[str, bool]:
+    # Returns (response_text, done). done=False means the assistant is waiting on
+    # the user (a clarification or a confirmation) and the session should continue.
     start = time.time()
     clarified = clarification.resolve(user_input)
     if clarified.get("matched"):
         if not clarified.get("resolved"):
             eval.log(user_input, "clarification", success=False, latency_ms=int((time.time()-start)*1000), error=clarified["message"])
-            return clarified["message"]
+            return clarified["message"], False
         user_input = f"{user_input}\n{clarified['message']}"
 
     confirmation = policy.resolve_confirmation(user_input)
     if confirmation.get("matched"):
         if not confirmation.get("approved"):
             eval.log(user_input, "policy_confirmation", success=True, latency_ms=int((time.time()-start)*1000))
-            return confirmation["message"]
+            return confirmation["message"], True
         tool_used = confirmation["name"]
         tool_result = execute_tool(tool_used, confirmation["args"])
         eval.log(
@@ -58,7 +67,7 @@ def run(user_input: str, settings: dict) -> str:
             latency_ms=int((time.time()-start)*1000),
             error=tool_result["message"] if not tool_result["success"] else None,
         )
-        return tool_result["message"]
+        return tool_result["message"], True
 
     # context enrichment and RAG retrieval run in parallel
     with ThreadPoolExecutor(max_workers=2) as ex:
@@ -70,10 +79,14 @@ def run(user_input: str, settings: dict) -> str:
     system_prompt = _system_prompt(settings, past_context)
     tool_used = None
 
+    history = get_history()
+    if history and history[-1].get("role") == "user" and history[-1].get("content") == user_input:
+        history = history[:-1]
+
     contents = []
-    for entry in get_history():
+    for entry in history:
         contents.append(types.Content(
-            role=entry["role"],
+            role="model" if entry["role"] == "assistant" else entry["role"],
             parts=[types.Part.from_text(text=entry["content"])]
         ))
 
@@ -87,6 +100,7 @@ def run(user_input: str, settings: dict) -> str:
     contents.append(types.Content(role="user", parts=user_parts))
 
     try:
+        last_tool_result = None
         for _ in range(5):
             response = generate(contents, tools=TOOLS, system_instruction=system_prompt)
             candidate = response.candidates[0]
@@ -102,7 +116,9 @@ def run(user_input: str, settings: dict) -> str:
             if not function_calls:
                 result = "".join(text_parts).strip()
                 eval.log(user_input, tool_used or "llm", success=True, latency_ms=int((time.time()-start)*1000))
-                return result
+                # If a tool needs confirmation, the model is asking the user to
+                # approve; keep the session open to receive their yes/no.
+                return result, not policy.has_pending_action()
 
             contents.append(candidate.content)
 
@@ -114,14 +130,40 @@ def run(user_input: str, settings: dict) -> str:
                 if fc.name == "ask_clarification":
                     question = args.get("question", "Could you clarify what you mean?")
                     eval.log(user_input, "ask_clarification", success=True, latency_ms=int((time.time() - start) * 1000))
-                    return question
+                    return question, False
 
                 policy_result = policy.check_policy(fc.name, args)
                 if policy_result["decision"] == "allow":
                     tool_result = execute_tool(fc.name, args)
+                elif policy_result["decision"] == "confirm":
+                    eval.log(
+                        user_input, fc.name,
+                        success=False,
+                        latency_ms=int((time.time() - start) * 1000),
+                        error=policy_result["message"],
+                    )
+                    return policy_result["message"], False
+                elif policy_result["decision"] == "block":
+                    eval.log(
+                        user_input, fc.name,
+                        success=False,
+                        latency_ms=int((time.time() - start) * 1000),
+                        error=policy_result["message"],
+                    )
+                    return policy_result["message"], True
+                elif policy_result["decision"] == "clarify":
+                    eval.log(
+                        user_input, fc.name,
+                        success=False,
+                        latency_ms=int((time.time() - start) * 1000),
+                        error=policy_result["message"],
+                    )
+                    return policy_result["message"], False
                 else:
                     tool_result = {"success": False, "message": policy_result["message"]}
                 print(f"[Tool] → {tool_result}")
+                if tool_result.get("success"):
+                    last_tool_result = tool_result["message"]
                 eval.log(
                     user_input, fc.name,
                     success=tool_result["success"],
@@ -144,4 +186,6 @@ def run(user_input: str, settings: dict) -> str:
         raise
 
     eval.log(user_input, tool_used or "llm", success=False, latency_ms=int((time.time()-start)*1000), error="max iterations reached")
-    return "I wasn't able to complete that request."
+    if last_tool_result:
+        return last_tool_result, True
+    return "I wasn't able to complete that request.", True

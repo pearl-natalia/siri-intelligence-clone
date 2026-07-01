@@ -7,6 +7,7 @@ load_dotenv()
 
 conversation_history = []
 MAX_HISTORY = 20
+MODEL_ID = "gemini-3.5-flash"
 
 
 def add_user_message(content):
@@ -35,13 +36,13 @@ def _client() -> genai.Client:
 def model(prompt: str, tmp: float, short_term_history: bool = False) -> str:
     """Streaming text call — used by individual action modules."""
     client = _client()
-    model_id = "gemini-2.0-flash"
+    model_id = MODEL_ID
 
     contents = []
     if short_term_history:
         for entry in conversation_history:
             contents.append(types.Content(
-                role=entry["role"],
+                role="model" if entry["role"] == "assistant" else entry["role"],
                 parts=[types.Part.from_text(text=entry["content"])]
             ))
 
@@ -89,7 +90,7 @@ def generate(
         config_kwargs["system_instruction"] = system_instruction
 
     return client.models.generate_content(
-        model="gemini-2.0-flash",
+        model=MODEL_ID,
         contents=contents,
         config=types.GenerateContentConfig(**config_kwargs),
     )
