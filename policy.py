@@ -181,6 +181,9 @@ def _describe(name: str, args: dict) -> str:
             if target:
                 day = " tomorrow" if "tomorrow" in text else " today" if "today" in text else _calendar_date_phrase(str(request))
                 return f"delete the '{target}' Calendar event{day}"
+            if args.get("_clarified"):
+                day = " tomorrow" if "tomorrow" in text else " today" if "today" in text else _calendar_date_phrase(str(request))
+                return f"delete the Calendar event you clarified{day}"
             return f"cancel this Calendar event: {request}"
         if any(word in text for word in ("update", "move", "reschedule")):
             return f"update Calendar for: {request}"
@@ -212,6 +215,59 @@ def _calendar_date_phrase(request: str) -> str:
     return f" on {match.group(1)}" if match else ""
 
 
+def _clean_calendar_title(title: str) -> str:
+    title = re.sub(r"[.?!,;:]+$", "", str(title or "")).strip()
+    return re.sub(r"^(my|the|a|an)\s+", "", title, flags=re.IGNORECASE).strip()
+
+
+def _looks_like_event_title(title: str) -> bool:
+    title = _clean_calendar_title(title)
+    if not title:
+        return False
+    lower = title.lower()
+    if re.fullmatch(r"(today|tomorrow|tonight|this morning|this afternoon|this evening)", lower):
+        return False
+    if re.search(r"^(i|we|you|they)\b", lower):
+        return False
+    if re.search(r"^(have|had|got|scheduled|planned|booked|set)\b", lower):
+        return False
+    if re.search(r"^(on|for|at|in|to|from|with)\b", lower):
+        return False
+    return True
+
+
+def _extract_calendar_title(text: str) -> str:
+    quoted = re.search(r"""["']([^"']+)["']""", text)
+    if quoted:
+        title = _clean_calendar_title(quoted.group(1))
+        return title if _looks_like_event_title(title) else ""
+
+    date_boundary = (
+        r"(?:\s+(?:today|tomorrow)\b.*|"
+        r"\s+(?:on\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december|"
+        r"jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b.*|$)"
+    )
+    explicit = re.search(
+        r"\b(?:event|meeting|appointment)\s+(?:called|named|about|for|with)\s+(.+?)" + date_boundary,
+        text,
+        flags=re.IGNORECASE,
+    )
+    if explicit:
+        title = _clean_calendar_title(explicit.group(1))
+        return title if _looks_like_event_title(title) else ""
+
+    bare = re.search(
+        r"\b(?:event|meeting|appointment)\s+(.+?)" + date_boundary,
+        text,
+        flags=re.IGNORECASE,
+    )
+    if bare:
+        title = _clean_calendar_title(bare.group(1))
+        return title if _looks_like_event_title(title) else ""
+
+    return ""
+
+
 def _calendar_cancel_target(request: str) -> str:
     text = str(request or "").strip()
     lower = text.lower()
@@ -220,28 +276,13 @@ def _calendar_cancel_target(request: str) -> str:
     if not any(word in lower for word in ("event", "meeting", "appointment")):
         return ""
 
-    quoted = re.search(r"""["']([^"']+)["']""", text)
-    if quoted:
-        return quoted.group(1).strip()
-
-    target = re.search(
-        r"\b(?:event|meeting|appointment)\s+(?:called|named|about|for|with)?\s*(.+?)(?:\s+(?:today|tomorrow)\b.*|\s+(?:on\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b.*|$)",
-        text,
-        flags=re.IGNORECASE,
-    )
-    if not target:
-        return ""
-
-    title = target.group(1).strip()
-    title = re.sub(r"[.?!,;:]+$", "", title).strip()
-    title = re.sub(r"^(my|the|a|an)\s+", "", title, flags=re.IGNORECASE).strip()
-    if title.lower() in {"", "today", "tomorrow"}:
-        return ""
-    return title
+    return _extract_calendar_title(text)
 
 
 def _calendar_needs_clarification(name: str, args: dict) -> bool:
     if name != "manage_calendar":
+        return False
+    if args.get("_clarified"):
         return False
     request = str(args.get("request") or "")
     lower = request.lower()

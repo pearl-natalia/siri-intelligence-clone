@@ -51,6 +51,48 @@ def run(user_input: str, settings: dict) -> tuple[str, bool]:
         if not clarified.get("resolved"):
             eval.log(user_input, "clarification", success=False, latency_ms=int((time.time()-start)*1000), error=clarified["message"])
             return clarified["message"], False
+        if clarified.get("action_name"):
+            tool_used = clarified["action_name"]
+            args = clarified["args"]
+            policy_result = policy.check_policy(tool_used, args)
+            if policy_result["decision"] == "allow":
+                tool_result = execute_tool(tool_used, args)
+                eval.log(
+                    user_input,
+                    tool_used,
+                    success=tool_result["success"],
+                    latency_ms=int((time.time()-start)*1000),
+                    error=tool_result["message"] if not tool_result["success"] else None,
+                )
+                return tool_result["message"], True
+            if policy_result["decision"] == "confirm":
+                eval.log(
+                    user_input,
+                    tool_used,
+                    success=False,
+                    latency_ms=int((time.time()-start)*1000),
+                    error=policy_result["message"],
+                )
+                return policy_result["message"], False
+            if policy_result["decision"] == "block":
+                eval.log(
+                    user_input,
+                    tool_used,
+                    success=False,
+                    latency_ms=int((time.time()-start)*1000),
+                    error=policy_result["message"],
+                )
+                return policy_result["message"], True
+            if policy_result["decision"] == "clarify":
+                clarification.ask_tool(tool_used, args, policy_result["message"])
+                eval.log(
+                    user_input,
+                    tool_used,
+                    success=False,
+                    latency_ms=int((time.time()-start)*1000),
+                    error=policy_result["message"],
+                )
+                return policy_result["message"], False
         user_input = f"{user_input}\n{clarified['message']}"
 
     confirmation = policy.resolve_confirmation(user_input)
@@ -152,6 +194,7 @@ def run(user_input: str, settings: dict) -> tuple[str, bool]:
                     )
                     return policy_result["message"], True
                 elif policy_result["decision"] == "clarify":
+                    clarification.ask_tool(fc.name, args, policy_result["message"])
                     eval.log(
                         user_input, fc.name,
                         success=False,

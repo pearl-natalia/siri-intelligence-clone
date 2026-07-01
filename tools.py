@@ -399,7 +399,8 @@ def execute_tool(name: str, args: dict) -> dict:
     if fn is None:
         return {"success": False, "message": f"Unknown tool: {name}"}
     try:
-        return fn(**args)
+        public_args = {k: v for k, v in args.items() if not k.startswith("_")}
+        return fn(**public_args)
     except Exception as e:
         return {"success": False, "message": f"Tool '{name}' failed: {e}"}
 
@@ -651,6 +652,59 @@ def _control_music(action: str, query: str = None, music_type: str = None) -> di
     return _ok("Done.") if r.returncode == 0 else _err(r.stderr.strip())
 
 
+def _clean_calendar_title(title: str) -> str:
+    title = re.sub(r"[.?!,;:]+$", "", str(title or "")).strip()
+    return re.sub(r"^(my|the|a|an)\s+", "", title, flags=re.IGNORECASE).strip()
+
+
+def _looks_like_event_title(title: str) -> bool:
+    title = _clean_calendar_title(title)
+    if not title:
+        return False
+    lower = title.lower()
+    if re.fullmatch(r"(today|tomorrow|tonight|this morning|this afternoon|this evening)", lower):
+        return False
+    if re.search(r"^(i|we|you|they)\b", lower):
+        return False
+    if re.search(r"^(have|had|got|scheduled|planned|booked|set)\b", lower):
+        return False
+    if re.search(r"^(on|for|at|in|to|from|with)\b", lower):
+        return False
+    return True
+
+
+def _extract_calendar_title(text: str) -> str:
+    quoted = re.search(r"""["']([^"']+)["']""", text)
+    if quoted:
+        title = _clean_calendar_title(quoted.group(1))
+        return title if _looks_like_event_title(title) else ""
+
+    date_boundary = (
+        r"(?:\s+(?:today|tomorrow)\b.*|"
+        r"\s+(?:on\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december|"
+        r"jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b.*|$)"
+    )
+    explicit = re.search(
+        r"\b(?:event|meeting|appointment)\s+(?:called|named|about|for|with)\s+(.+?)" + date_boundary,
+        text,
+        flags=re.IGNORECASE,
+    )
+    if explicit:
+        title = _clean_calendar_title(explicit.group(1))
+        return title if _looks_like_event_title(title) else ""
+
+    bare = re.search(
+        r"\b(?:event|meeting|appointment)\s+(.+?)" + date_boundary,
+        text,
+        flags=re.IGNORECASE,
+    )
+    if bare:
+        title = _clean_calendar_title(bare.group(1))
+        return title if _looks_like_event_title(title) else ""
+
+    return ""
+
+
 def _calendar_cancel_details(request: str) -> tuple:
     text = request.strip()
     lower = text.lower()
@@ -663,21 +717,7 @@ def _calendar_cancel_details(request: str) -> tuple:
     if date_offset is None:
         return None, None
 
-    quoted = re.search(r"""["']([^"']+)["']""", text)
-    if quoted:
-        title = quoted.group(1).strip()
-    else:
-        title_match = re.search(
-            r"\b(?:event|meeting|appointment)\s+(?:called|named|about|for|with)?\s*(.+?)(?:\s+(?:today|tomorrow)\b.*|\s+(?:on\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?\b.*|$)",
-            text,
-            flags=re.IGNORECASE,
-        )
-        title = title_match.group(1).strip() if title_match else ""
-        title = re.sub(r"[.?!,;:]+$", "", title).strip()
-        title = re.sub(r"^(my|the|a|an)\s+", "", title, flags=re.IGNORECASE).strip()
-        if title.lower() in {"today", "tomorrow"}:
-            title = ""
-
+    title = _extract_calendar_title(text)
     return (title or None), date_offset
 
 
@@ -765,11 +805,50 @@ end tell'''
 
 def _cancel_calendar_event(request: str) -> dict:
     title, date_offset = _calendar_cancel_details(request)
-    if not title:
+    if date_offset is None:
         return None
 
-    safe_title = _as_string(title)
     _, day_name = _calendar_date_offset(request)
+    if not title:
+        script = f'''tell application "Calendar"
+    set targetStart to current date
+    set time of targetStart to 0
+    set targetStart to targetStart + ({date_offset} * days)
+    set targetEnd to targetStart + (1 * days)
+    set eventMatches to {{}}
+    repeat with cal in calendars
+        set calEvents to (every event of cal whose start date is greater than or equal to targetStart and start date is less than targetEnd)
+        repeat with ev in calEvents
+            set end of eventMatches to ev
+        end repeat
+    end repeat
+
+    set matchCount to count of eventMatches
+    if matchCount is 0 then
+        return "No Calendar events were found for {day_name}."
+    else if matchCount is greater than 1 then
+        set eventNames to {{}}
+        repeat with ev in eventMatches
+            set end of eventNames to (summary of ev & " at " & ((start date of ev) as string))
+        end repeat
+        set AppleScript's text item delimiters to "; "
+        return "I found multiple Calendar events for {day_name}: " & (eventNames as text)
+    end if
+
+    set deletedName to summary of item 1 of eventMatches
+    delete item 1 of eventMatches
+    delay 0.5
+    return "Deleted the " & deletedName & " event for {day_name}."
+end tell'''
+        r = _run_applescript(script)
+        if r.returncode != 0:
+            return _err(f"Calendar deletion failed: {r.stderr.strip()}")
+        message = r.stdout.strip()
+        if message.startswith("Deleted "):
+            return _ok(message)
+        return _err(message or "Calendar deletion did not complete.")
+
+    safe_title = _as_string(title)
     script = f'''tell application "Calendar"
     set targetStart to current date
     set time of targetStart to 0
