@@ -8,7 +8,11 @@ import os, uuid
 from datetime import datetime
 from dotenv import load_dotenv
 
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
 load_dotenv()
+
+_EMBED_MODEL = None
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "memory_db")
 TOP_K = 5
@@ -24,10 +28,24 @@ def _collection():
     )
 
 
+def _get_embed_model():
+    # Loaded once per process and cached, so the weights aren't reloaded
+    # (and the progress bar isn't reprinted) on every request.
+    global _EMBED_MODEL
+    if _EMBED_MODEL is None:
+        try:
+            from transformers.utils import logging as hf_logging
+            hf_logging.disable_progress_bar()
+        except Exception:
+            pass
+        from sentence_transformers import SentenceTransformer
+        _EMBED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+    return _EMBED_MODEL
+
+
 def _embed(texts: list) -> list:
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    return model.encode(texts, convert_to_numpy=True).tolist()
+    model = _get_embed_model()
+    return model.encode(texts, convert_to_numpy=True, show_progress_bar=False).tolist()
 
 
 def _extract_facts(history: list) -> list[str]:
