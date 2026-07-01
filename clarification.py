@@ -59,10 +59,47 @@ def ask_contact(action_name: str, args: dict, contact_field: str, candidates: li
     }
 
 
+def ask_tool(action_name: str, args: dict, question: str) -> dict:
+    global _PENDING
+    _PENDING = {
+        "kind": "tool",
+        "action_name": action_name,
+        "args": args,
+        "question": question,
+    }
+    return {
+        "matched": True,
+        "message": question,
+    }
+
+
 def resolve(user_input: str) -> dict:
     global _PENDING
     if _PENDING is None:
         return {"matched": False}
+
+    if _PENDING.get("kind") == "tool":
+        pending = _PENDING
+        _PENDING = None
+        args = dict(pending["args"])
+        if "request" in args:
+            args["request"] = (
+                f"{args['request']}\n"
+                f"Clarification answer from user: {user_input.strip()}"
+            )
+        else:
+            args["_clarification_answer"] = user_input.strip()
+        args["_clarified"] = True
+        return {
+            "matched": True,
+            "resolved": True,
+            "action_name": pending["action_name"],
+            "args": args,
+            "message": (
+                f"Original {pending['action_name']} request plus clarification: "
+                f"{user_input.strip()}"
+            ),
+        }
 
     query = user_input.strip()
     candidates = _PENDING["candidates"]
