@@ -17,8 +17,7 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='Swift', debug=False, bootloader_ignore_signals=False,
           strip=False, upx=False, console=False, target_arch=None,
           codesign_identity=os.getenv('SWIFT_CODESIGN_IDENTITY'), entitlements_file=str(root / 'packaging' / 'entitlements.plist'))
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='Swift')
-app = BUNDLE(coll, name='Swift.app', bundle_identifier='io.github.pearl-natalia.swift-assistant',
+app = BUNDLE(exe, a.binaries, a.datas, name='Swift.app', bundle_identifier='io.github.pearl-natalia.swift-assistant',
              info_plist={
                  'CFBundleShortVersionString': '0.1.0', 'CFBundleVersion': '1',
                  'NSMicrophoneUsageDescription': 'Swift listens to your voice while a voice chat is active.',
