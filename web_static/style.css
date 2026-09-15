@@ -132,3 +132,22 @@ summary:hover { color: var(--accent); }
   .features { margin: 18px 0; }
 }
 @media (max-width: 370px) { .chat-heading { padding: 14px; gap: 10px; } .audio-controls { font-size: 11px; } }
+.account-button { background: transparent; color: var(--accent); border: 1px solid #ccd6c6; border-radius: 7px; padding: 7px 13px; font-size: 12px; }
+.account-button:hover { background: #edf3e9; }
+#account-name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-actions { display: flex; align-items: center; gap: 14px; flex: none; }
+.account-status { margin: 0; padding: 8px 24px; color: var(--muted); background: #fafbf7; border-bottom: 1px solid #ebeee7; font-size: 11px; line-height: 1.5; }
+dialog { width: min(460px, calc(100% - 32px)); max-height: min(680px, calc(100% - 48px)); padding: 26px; border: 1px solid var(--line); border-radius: 18px; background: #fdfefb; color: inherit; box-shadow: 0 20px 80px #21332626; }
+dialog::backdrop { background: #26352a66; }
+.dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.dialog-heading h2 { font-family: var(--serif); font-size: 25px; font-weight: 400; }
+dialog p { font-size: 13px; line-height: 1.7; margin: 18px 0; }
+dialog .dialog-note { color: var(--muted); font-size: 12px; }
+.guest-button { display: block; margin: 16px auto 0; padding: 8px; background: none; border: 0; color: var(--muted); font-size: 12px; }
+.guest-button:hover { text-decoration: underline; }
+.saved-list { display: flex; flex-direction: column; gap: 8px; }
+.saved-row { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); padding: 6px 0 12px; }
+.saved-open { flex: 1; min-width: 0; padding: 10px; border: 0; border-radius: 7px; background: #eff3eb; color: var(--accent); text-align: left; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
+.saved-open:hover { background: #e4ecdd; }
+.saved-open small { display: block; font-size: 10px; color: var(--muted); margin-top: 3px; }
+@media (max-width: 680px) { nav { gap: 14px; } #account-name { display: none; } .chat-actions { gap: 10px; } .account-status { padding: 7px 18px; } }

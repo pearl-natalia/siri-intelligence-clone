@@ -101,11 +101,12 @@ function speechSetup({speechResponse} = {}) {
     if (!elements.has(id)) elements.set(id, {checked:true, value:'',hidden:true,classList:{toggle(){}},setAttribute(){},addEventListener(){},textContent:''});
     return elements.get(id);
   };
-  const context = {console,URL,AbortController,Date,Intl,setTimeout,clearTimeout,window:{
+  const context = {console,URL,URLSearchParams,AbortController,Date,Intl,setTimeout,clearTimeout,window:{
+    location:{search:'',pathname:'/'},history:{replaceState(){}},
     speechSynthesis:{speak:u=>utterances.push(u),cancel(){}},addEventListener(){},
   },document:{getElementById:element,querySelectorAll:()=>[],addEventListener(){}},
     SpeechSynthesisUtterance:class {constructor(text){this.text=text;}},
-    fetch:async(url,options)=>url==='/api/status' ? {ok:true,json:async()=>({tts_configured:true,ai_configured:true})} : speechResponse(options),
+    fetch:async(url,options)=>url==='/api/status' ? {ok:true,json:async()=>({tts_configured:true,ai_configured:true})} : url==='/api/account' ? {ok:true,json:async()=>({enabled:false,user:null})} : speechResponse(options),
   };
   vm.runInNewContext(fs.readFileSync('web_static/app.js','utf8'),context);
   return {context,utterances,element};

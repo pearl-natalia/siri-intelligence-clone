@@ -8,9 +8,11 @@ import requests
 from flask import Flask, Response, jsonify, request, redirect
 from werkzeug.exceptions import HTTPException
 from web_assistant import reply, MAC_DOWNLOAD_URL
+from web_accounts import init_accounts, chat_context, store
 
 app = Flask(__name__, static_folder="web_static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = 65536
+init_accounts(app)
 visits = defaultdict(deque)
 visit_lock = Lock()
 
@@ -19,7 +21,7 @@ def headers(response):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Cache-Control"] = "no-store"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'self' https://replit.com https://*.replit.com"
     return response
 
 @app.get("/")
@@ -52,6 +54,9 @@ def chat():
     timezone = data.get("timezone", "UTC")
     if not isinstance(timezone, str) or len(timezone) > 100:
         return jsonify(error="Invalid timezone."), 400
+    user, previous = chat_context(data)
+    if user:
+        history = [{"role": item["role"], "text": item["text"]} for item in (previous["messages"] if previous else [])[-20:]]
     # Global process limit avoids trusting spoofable proxy/IP headers.
     with visit_lock:
         now = time.monotonic()
@@ -62,7 +67,7 @@ def chat():
             return jsonify(error="Swift is busy. Please try again in a minute."), 429
         recent.append(now)
     try:
-        return jsonify(reply(message.strip(), history, timezone))
+        answer = reply(message.strip(), history, timezone)
     except Exception as exc:
         code = getattr(exc, "code", None)
         if code in (401, 403):
@@ -76,6 +81,9 @@ def chat():
         # Never return or log exception strings: provider URLs may contain credentials.
         app.logger.warning("Assistant request failed (%s)", type(exc).__name__)
         return jsonify(error=error), 503
+    if user and answer.get("mode") != "setup":
+        answer["conversation"] = store().save_turn(user["id"], previous, message.strip(), answer)
+    return jsonify(answer)
 
 @app.post("/api/speech")
 def speech():

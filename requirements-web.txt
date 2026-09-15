@@ -4,3 +4,6 @@ gunicorn>=23,<24
 google-genai>=1.14,<3
 python-dotenv>=1,<2
 requests>=2.32,<3
+Authlib>=1.7.2,<2
+SQLAlchemy>=2.0.45,<3
+psycopg[binary]>=3.2,<4

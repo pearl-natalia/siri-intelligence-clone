@@ -35,16 +35,28 @@ Open Preview. For microphone access, open the preview in its own browser tab, us
 
 ## Supported here
 
-- Gemini conversation with the current tab's short-term history.
+- Gemini conversation as a guest, or with account-scoped saved browser chats.
 - Browser speech input and spoken replies.
 - Time in the browser's timezone, including without a Gemini key.
 - Existing weather and web-search helpers, with named cities and desktop opening disabled.
 - Clickable Spotify search, Google Maps and HTTPS browser links. Links do not automatically start playback.
 
-Mac app control, AppleScript, iMessage, Apple Calendar, contacts, Mac screen/clipboard capture, and desktop persistent memory are available only in the original macOS edition. The browser edition does not import that execution loop. Conversations are held in tab memory and reset on refresh/New chat, with no shared server conversation history. Provider errors are sanitized; repository and secret files are not served.
+Mac app control, AppleScript, iMessage, Apple Calendar, contacts, Mac screen/clipboard capture, and desktop persistent memory are available only in the original macOS edition. The browser edition does not import that execution loop. Guest conversations are held in tab memory and reset on refresh/New chat. Provider errors are sanitized; repository and secret files are not served.
+
+## Replit accounts and saved browser chats
+
+Sign-in is optional. Guests can use the demo immediately. Signed-in users can reopen conversations through **Saved chats**, delete their own chats, and keep their **Speak replies** preference across visits. Starting a new chat leaves previous saved conversations available in the picker. Guest messages are not imported when signing in, and the Mac app's SQLite memory is not uploaded.
+
+The web runtime uses Replit's OpenID Connect provider (`https://replit.com/oidc`) with Authlib and PKCE. `REPL_ID` is the public client ID supplied by Replit. Only `openid profile` is requested; Swift does not request email, workspace access, or offline provider access. The verified profile supplies the account identifier and display name. Authlib validates the authorization state, nonce, issuer, audience and signature. Provider tokens are discarded after login.
+
+Replit's PostgreSQL connection is read from `DATABASE_URL`. A random `SESSION_SECRET` of at least 32 characters must be present in Replit Secrets. Replit supplies `REPLIT_DOMAINS` / `REPLIT_DEV_DOMAIN` for the preview's callback allowlist; the current published Swift hostname is also allowlisted. No secret values belong in the repository. Without required configuration the guest demo remains available and account controls stay hidden. Replit's supported setup flow for Auth is through Agent; this project's OIDC client registration was separately checked against the provider before integration.
+
+On first account access, the app creates only its own `swift_web_users`, `swift_web_sessions` and `swift_web_chats` tables. Sessions expire after 24 hours, store a hashed random token server-side, and use Secure / HttpOnly / SameSite cookies. All chat reads and writes filter by the verified session's user; request headers and user-supplied IDs never establish identity. Authenticated mutations require CSRF tokens. Saved replies use server-owned history and revisions reject overlapping updates. The browser demo limits each account to 100 chats, with 100 turns per chat.
+
+Development and published databases may be separate. Before publishing, confirm that Replit's production database integration and `SESSION_SECRET` are available to the deployment. Do not copy a development database credential into frontend code or export real conversations for tests.
 
 ## Validation
 
-` .venv-web/bin/python -m unittest test_web -v ` covers startup/setup, time, request validation, cross-origin protection, blocked desktop execution, link handling, secret-safe failures, isolated history input and a mocked Gemini function-call round trip. `node --check web_static/app.js` checks the browser script. `node --test test_voice.cjs` verifies voice turn-taking, cancellation, permission failures and silence handling. Live Gemini, weather and microphone behavior require their respective key or browser permission.
+` .venv-web/bin/python -m unittest test_accounts test_web test_speech test_desktop -q ` covers account isolation, CSRF, session expiry/revocation, signed OIDC token validation, persistent preferences, revision conflicts, startup/setup, request validation, blocked native execution and safe errors. Account tests use temporary SQLite databases and signed test tokens, with no real credentials. `node --check web_static/app.js` checks the browser script. `node --test test_voice.cjs` verifies voice turn-taking, cancellation, permission failures and silence handling. Live Gemini, weather and microphone behavior require their respective key or browser permission.
 
 Run is the development preview. Public publishing, account access controls and production deployment are separate actions.

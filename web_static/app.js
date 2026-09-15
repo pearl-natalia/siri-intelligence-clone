@@ -1,6 +1,8 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 let history = [], busy = false, voice;
+let account = null, csrf = '', conversation = null, savedLoading = false, accountLoaded = false;
+$('speak').disabled = true;
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const synth = window.speechSynthesis;
 function resizeMessage() {
@@ -30,13 +32,14 @@ function addMessage(role, text, links = []) {
   $('messages').scrollTop = $('messages').scrollHeight;
 }
 function updateMic() {
-  $('mic').disabled = !Recognition || (busy && !voice?.active);
+  $('mic').disabled = !accountLoaded || !Recognition || (busy && !voice?.active);
   $('mic').classList.toggle('listening', Boolean(voice?.active));
   $('mic-label').textContent = voice?.active ? 'End voice chat' : 'Start voice chat';
   $('mic').setAttribute('aria-pressed', String(Boolean(voice?.active)));
 }
 function setBusy(value) {
   busy = value; $('send').disabled = value; $('clear').disabled = value;
+  $('saved-chats').disabled = value; $('sign-out').disabled = value; $('sign-in').disabled = value;
   updateMic();
 }
 let ttsConfigured = false, ttsRetryAfter = 0, speechController, speechAudio, speechUrl, speechVersion = 0, finishSpeech;
@@ -113,10 +116,13 @@ async function sendMessage(message) {
   addMessage('user', message);
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 140000);
   try {
-    const response = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({message, history, timezone:Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'}), signal:controller.signal});
+    await accountReady;
+    const response = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json', 'X-CSRF-Token':csrf}, body:JSON.stringify({message, history:account ? [] : history, account_required:Boolean(account), conversation_id:conversation?.id, revision:conversation?.revision, timezone:Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'}), signal:controller.signal});
     const data = await response.json();
+    if (response.status === 401) $('sign-in').hidden = false;
     if (!response.ok) throw new Error(data.error || 'Swift could not respond.');
     addMessage('assistant', data.reply, data.links);
+    if (data.conversation) {conversation = data.conversation; accountNotice('Saved to your account.');}
     if (data.mode !== 'setup') history = [...history, {role:'user',text:message}, {role:'model',text:data.reply.slice(0,8000)}].slice(-20);
     setState('Reply ready');
     return data.reply;
@@ -147,7 +153,8 @@ document.querySelectorAll('[data-prompt]').forEach(button => button.addEventList
 }));
 $('stop').addEventListener('click', () => {voice?.stop(busy ? 'Thinking · voice ended' : 'Voice and audio stopped'); stopSpeech();});
 $('speak').addEventListener('change', () => {if (!$('speak').checked) {voice?.stop('Voice chat ended');stopSpeech();setState(busy ? 'Thinking…' : 'Ready when you are');}});
-$('clear').addEventListener('click', () => {if(busy)return; voice?.stop(); history = []; $('messages').replaceChildren(); $('empty-state').hidden=false; $('message').value=''; resizeMessage(); stopSpeech(); setState('Ready');});
+function resetConversation() {voice?.stop(); history = []; conversation = null; $('messages').replaceChildren(); $('empty-state').hidden=false; $('message').value=''; resizeMessage(); stopSpeech(); setState('Ready');}
+$('clear').addEventListener('click', () => {if(busy)return; resetConversation(); accountNotice(account ? 'New chat · saves to your account.' : 'Guest chat · not saved.');});
 if (Recognition) {
   voice = new window.VoiceConversation({
     Recognition, send: sendMessage, speak, stopSpeech, onState: setState,
@@ -158,6 +165,7 @@ if (Recognition) {
     if (voice.active) { voice.stop(busy ? 'Thinking · voice ended' : 'Voice chat ended'); return; }
     if (busy) return;
     $('speak').checked = true;
+    savePreference();
     voice.start();
   });
 } else {
@@ -171,3 +179,107 @@ fetch('/api/status').then(response=>{if(!response.ok)throw new Error(); return r
   if (!busy && !voice?.active) setState('Ready');
   if(!data.ai_configured){$('setup').hidden=false;$('setup').textContent='AI replies are temporarily unavailable. You can still check the time or download the Mac preview.';}
 }).catch(()=>setState('Connection unavailable · refresh to reconnect'));
+
+function accountNotice(text) {
+  $('account-status').textContent = text;
+  $('account-status').hidden = !text;
+}
+function renderAccount(enabled) {
+  $('sign-in').hidden = !enabled || Boolean(account);
+  $('sign-out').hidden = !account;
+  $('account-name').hidden = !account;
+  $('account-name').textContent = account?.name || '';
+  $('saved-chats').hidden = !account;
+  accountNotice(account ? 'Signed in · chats save to your account.' : enabled ? 'Guest chat · sign in to save conversations.' : '');
+}
+async function accountRequest(path, options = {}) {
+  const response = await fetch(path, {...options, headers:{'Content-Type':'application/json', 'X-CSRF-Token':csrf}});
+  const data = await response.json();
+  if (response.status === 401) $('sign-in').hidden = false;
+  if (!response.ok) throw new Error(data.error || 'Saved chats are unavailable. Try again shortly.');
+  return data;
+}
+const accountReady = (async () => {
+  try {
+    const data = await accountRequest('/api/account');
+    account = data.user; csrf = data.csrf || '';
+    if (account) $('speak').checked = data.preferences.speak;
+    renderAccount(data.enabled);
+  } catch (_) {renderAccount(false);}
+  accountLoaded = true; $('speak').disabled = false; updateMic();
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('signin')) {
+    accountNotice('Sign-in didn’t finish. You can try again or keep chatting as a guest.');
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+})();
+$('sign-in').addEventListener('click', () => {if (voice?.active) voice.stop(); stopSpeech(); $('sign-in-dialog').showModal();});
+document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $(button.dataset.closeDialog).close()));
+$('sign-out').addEventListener('click', async () => {
+  if (busy) return;
+  voice?.stop(); stopSpeech(); setBusy(true);
+  try {
+    await accountRequest('/api/auth/logout', {method:'POST'});
+    account = null; csrf = ''; $('speak').checked = true;
+    resetConversation(); renderAccount(true);
+    accountNotice('Signed out · this guest chat won’t be saved.');
+  } catch (error) {accountNotice(error.message);}
+  finally {setBusy(false);}
+});
+let preferenceQueue = Promise.resolve();
+function savePreference() {
+  const value = $('speak').checked;
+  preferenceQueue = preferenceQueue.then(async () => {
+    await accountReady;
+    if (!account) return;
+    try {await accountRequest('/api/account/preferences', {method:'PATCH',body:JSON.stringify({speak:value})});}
+    catch (error) {accountNotice('Voice preference wasn’t saved. ' + error.message);}
+  });
+}
+$('speak').addEventListener('change', savePreference);
+async function refreshSavedChats() {
+  const data = await accountRequest('/api/conversations');
+  $('saved-list').replaceChildren();
+  if (!data.conversations.length) {
+    const empty = document.createElement('p'); empty.textContent = 'No saved conversations yet.'; $('saved-list').append(empty);
+  }
+  for (const item of data.conversations) {
+    const row = document.createElement('div'); row.className = 'saved-row';
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'saved-open';
+    open.textContent = item.title;
+    const date = document.createElement('small'); date.textContent = new Date(item.updated * 1000).toLocaleDateString(); open.append(date);
+    open.addEventListener('click', async () => {
+      if (savedLoading || busy) return;
+      savedLoading = true; setBusy(true); voice?.stop(); stopSpeech();
+      try {
+        const data = await accountRequest('/api/conversations/' + encodeURIComponent(item.id));
+        resetConversation(); conversation = {id:data.id,revision:data.revision};
+        history = data.messages.slice(-20).map(item => ({role:item.role,text:item.text}));
+        for (const item of data.messages) addMessage(item.role === 'user' ? 'user' : 'assistant', item.text, item.links);
+        accountNotice('Saved to your account.'); $('saved-dialog').close(); $('message').focus();
+      } catch (error) {$('saved-error').textContent = error.message; $('saved-error').hidden = false;}
+      finally {savedLoading = false; setBusy(false);}
+    });
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'text-button'; remove.textContent = 'Delete';
+    remove.setAttribute('aria-label', 'Delete conversation: ' + item.title);
+    remove.addEventListener('click', async () => {
+      if (savedLoading || busy || !window.confirm('Delete this saved conversation? This can’t be undone.')) return;
+      savedLoading = true; setBusy(true);
+      try {
+        await accountRequest('/api/conversations/' + encodeURIComponent(item.id), {method:'DELETE'});
+        if (conversation?.id === item.id) resetConversation();
+        await refreshSavedChats();
+      } catch (error) {$('saved-error').textContent = error.message; $('saved-error').hidden = false;}
+      finally {savedLoading = false; setBusy(false);}
+    });
+    row.append(open, remove); $('saved-list').append(row);
+  }
+}
+$('saved-chats').addEventListener('click', async () => {
+  if (busy) return;
+  voice?.stop(); stopSpeech(); setBusy(true);
+  $('saved-error').hidden = true; $('saved-list').textContent = 'Loading…'; $('saved-dialog').showModal();
+  try {await refreshSavedChats();}
+  catch (error) {$('saved-list').textContent = ''; $('saved-error').textContent = error.message; $('saved-error').hidden = false;}
+  finally {setBusy(false);}
+});
