@@ -1,12 +1,11 @@
 """Replit HTTP entry point. Serve only browser assets, never repository files."""
 import os
-from pathlib import Path
 import time
 from collections import defaultdict, deque
 from threading import Lock
 from urllib.parse import urlparse
 import requests
-from flask import Flask, Response, jsonify, request, send_file
+from flask import Flask, Response, jsonify, request, redirect
 from werkzeug.exceptions import HTTPException
 from web_assistant import reply
 
@@ -14,6 +13,7 @@ app = Flask(__name__, static_folder="web_static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = 65536
 visits = defaultdict(deque)
 visit_lock = Lock()
+MAC_DOWNLOAD_URL = "https://github.com/pearl-natalia/siri-intelligence-clone/releases/download/v0.1.0-mac-preview/Swift-macOS-x86_64.zip"
 
 @app.after_request
 def headers(response):
@@ -29,15 +29,11 @@ def index():
 
 @app.get("/api/status")
 def status():
-    download = Path(app.root_path) / "releases" / "Swift-macOS-x86_64.zip"
-    return jsonify(mac_download="/download/mac" if download.is_file() else None, tts_configured=bool(os.getenv("ELEVENLABS_API_KEY")), ready=True, ai_configured=bool(os.getenv("GEMINI_API_KEY")), weather_configured=bool(os.getenv("WEATHER_API")))
+    return jsonify(mac_download="/download/mac", tts_configured=bool(os.getenv("ELEVENLABS_API_KEY")), ready=True, ai_configured=bool(os.getenv("GEMINI_API_KEY")), weather_configured=bool(os.getenv("WEATHER_API")))
 
 @app.get("/download/mac")
 def download_mac():
-    archive = Path(app.root_path) / "releases" / "Swift-macOS-x86_64.zip"
-    if not archive.is_file():
-        return jsonify(error="The Mac download is not available yet."), 404
-    return send_file(archive, as_attachment=True, download_name=archive.name, mimetype="application/zip")
+    return redirect(MAC_DOWNLOAD_URL, code=302)
 
 @app.post("/api/chat")
 def chat():
