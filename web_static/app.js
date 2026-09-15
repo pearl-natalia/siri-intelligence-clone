@@ -3,6 +3,11 @@ const $ = (id) => document.getElementById(id);
 let history = [], busy = false, voice;
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const synth = window.speechSynthesis;
+function resizeMessage() {
+  $('message').style.height = '34px';
+  $('message').style.height = Math.min($('message').scrollHeight, 120) + 'px';
+}
+$('message').addEventListener('input', resizeMessage);
 function setState(text) { $('state').textContent = text; }
 function addMessage(role, text, links = []) {
   const bubble = document.createElement('article');
@@ -123,7 +128,7 @@ async function sendMessage(message) {
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault(); const message = $('message').value.trim();
   if (!message || busy) return;
-  voice?.stop('Thinking…'); stopSpeech(); const version = speechVersion; $('message').value = '';
+  voice?.stop('Thinking…'); stopSpeech(); const version = speechVersion; $('message').value = ''; resizeMessage();
   try {
     const reply = await sendMessage(message);
     if (version !== speechVersion) return;
@@ -131,7 +136,7 @@ $('chat-form').addEventListener('submit', async (event) => {
       const played = await speak(reply);
       if (!voice?.active && (played || speechVersion === version + 1)) setState(played ? 'Ready when you are' : 'Reply ready · audio stopped');
     } else { setState('Ready when you are'); }
-  } catch (_) { if (!$('message').value) $('message').value = message; }
+  } catch (_) { if (!$('message').value) {$('message').value = message; resizeMessage();} }
 });
 $('message').addEventListener('keydown', (event) => {if(event.key === 'Enter' && !event.shiftKey){event.preventDefault(); $('chat-form').requestSubmit();}});
 document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => {
@@ -141,7 +146,7 @@ document.querySelectorAll('[data-prompt]').forEach(button => button.addEventList
 }));
 $('stop').addEventListener('click', () => {voice?.stop(busy ? 'Thinking · voice ended' : 'Voice and audio stopped'); stopSpeech();});
 $('speak').addEventListener('change', () => {if (!$('speak').checked) {voice?.stop('Voice chat ended');stopSpeech();setState(busy ? 'Thinking…' : 'Ready when you are');}});
-$('clear').addEventListener('click', () => {if(busy)return; voice?.stop(); history = []; $('messages').replaceChildren(); $('empty-state').hidden=false; $('message').value=''; stopSpeech(); setState('Ready');});
+$('clear').addEventListener('click', () => {if(busy)return; voice?.stop(); history = []; $('messages').replaceChildren(); $('empty-state').hidden=false; $('message').value=''; resizeMessage(); stopSpeech(); setState('Ready');});
 if (Recognition) {
   voice = new window.VoiceConversation({
     Recognition, send: sendMessage, speak, stopSpeech, onState: setState,
@@ -158,7 +163,7 @@ if (Recognition) {
   $('voice-hint').textContent='Voice input is not supported in this browser. Type below, or use Chrome.';
 }
 updateMic();
-document.addEventListener('visibilitychange', () => {if(document.hidden) {voice?.stop('Voice paused while this tab is hidden');stopSpeech();}});
+document.addEventListener('visibilitychange', () => {if(document.hidden) {if(voice?.active) voice.stop('Voice paused while this tab is hidden');stopSpeech();}});
 window.addEventListener('pagehide', () => {voice?.stop();stopSpeech();});
 fetch('/api/status').then(response=>{if(!response.ok)throw new Error(); return response.json();}).then(data=>{
   ttsConfigured = Boolean(data.tts_configured);
