@@ -7,7 +7,7 @@ load_dotenv()
 
 conversation_history = []
 MAX_HISTORY = 20
-MODEL_ID = "gemini-3.5-flash"
+MODEL_ID = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
 
 def add_user_message(content):
@@ -30,7 +30,7 @@ def _client() -> genai.Client:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY missing from .env")
-    return genai.Client(api_key=api_key)
+    return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=30000, retry_options=types.HttpRetryOptions(attempts=1)))
 
 
 def model(prompt: str, tmp: float, short_term_history: bool = False) -> str:

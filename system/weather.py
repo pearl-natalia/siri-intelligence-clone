@@ -4,7 +4,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'transcription')))
 from dotenv import load_dotenv
-from speech import speech
+from transcription.speech import speech
 from model import model, add_assistant_message
 from geopy.geocoders import Nominatim
 from pyicloud import PyiCloudService

@@ -3,6 +3,7 @@ from datetime import datetime, date
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 from google.genai import types
 from dotenv import load_dotenv
+from runtime_paths import load_settings
 
 load_dotenv()
 
@@ -926,12 +927,10 @@ def _manage_calendar(request: str) -> dict:
 
 def _execute_system_command(task: str) -> dict:
     from react import applescript_loop
-    from system.system import get_location
     from datetime import datetime
     context = (
         f"Today is {datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}. "
-        f"Current location: {get_location()}. "
-        f"User settings: {json.load(open('settings.json'))}"
+        f"User settings: {load_settings()}"
     )
     return applescript_loop(task, system_context=context)
 

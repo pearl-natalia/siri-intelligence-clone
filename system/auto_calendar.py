@@ -2,7 +2,7 @@ import subprocess, sys, os, re
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../transcription')))
 from model import model, get_history
-from speech import speech
+from transcription.speech import speech
 from datetime import datetime
 from react import run_applescript as _run_applescript
 

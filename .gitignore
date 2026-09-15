@@ -8,3 +8,12 @@ system/.cache
 to_do.txt
 popup.py
 outputs/
+.venv-mac/
+build/
+dist/
+models/
+memory_db/
+eval.db
+.env.*
+!.env.example
+releases/*.zip

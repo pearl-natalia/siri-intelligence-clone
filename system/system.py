@@ -1,20 +1,24 @@
 import subprocess, re, os, sys, json, time, platform
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../transcription')))
-from speech import speech
+from transcription.speech import speech
 from model import model
 from datetime import datetime
-from pyicloud import PyiCloudService
 from dotenv import load_dotenv
 
 def get_location():
     load_dotenv()
     iCloud_user = os.getenv("ICLOUD_USER")
     iCloud_pass = os.getenv("ICLOUD_PASSWORD")
+    if not iCloud_user or not iCloud_pass:
+        return None
+    try:
+        from pyicloud import PyiCloudService
+    except ImportError:
+        return None
     api = PyiCloudService(iCloud_user, iCloud_pass)
     device_name = platform.node()  # Current macbook's name
     
-    device_name = "Pearl's Macbook Air" # TMP; REMOVE
     chosen_device = None
     for device in api.devices:
         if device.get('name') == device_name:
@@ -23,8 +27,8 @@ def get_location():
 
 
 def adjust_system(task):
-    with open('settings.json', 'r') as file:
-        json_data = json.load(file)
+    from runtime_paths import load_settings
+    json_data = load_settings()
     json_string = json.dumps(json_data)
     current_datetime = datetime.now().strftime("%A, %B %d, %Y %I:%M:%S %p")
     

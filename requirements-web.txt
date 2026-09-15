@@ -1,0 +1,6 @@
+# Isolated browser runtime; original macOS requirements stay intact.
+Flask>=3.1,<4
+gunicorn>=23,<24
+google-genai>=1.14,<3
+python-dotenv>=1,<2
+requests>=2.32,<3

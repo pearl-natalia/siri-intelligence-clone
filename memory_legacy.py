@@ -1,0 +1,128 @@
+# Persistent memory using RAG.
+# At session end, Gemini extracts facts about the user from the conversation.
+# Each fact is embedded and stored in ChromaDB.
+# On each new request, the query is embedded and the most relevant facts
+# are retrieved and added to the system prompt.
+
+import os, uuid
+from datetime import datetime
+from dotenv import load_dotenv
+
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
+load_dotenv()
+
+_EMBED_MODEL = None
+
+from runtime_paths import data_dir
+DB_PATH = str(data_dir() / "memory_db")
+TOP_K = 5
+DUPLICATE_DISTANCE_THRESHOLD = 0.30  # roughly cosine similarity >= 0.70
+
+
+def _collection():
+    import chromadb
+    client = chromadb.PersistentClient(path=DB_PATH)
+    return client.get_or_create_collection(
+        name="swift_memory",
+        metadata={"hnsw:space": "cosine"},
+    )
+
+
+def _get_embed_model():
+    # Loaded once per process and cached, so the weights aren't reloaded
+    # (and the progress bar isn't reprinted) on every request.
+    global _EMBED_MODEL
+    if _EMBED_MODEL is None:
+        try:
+            from transformers.utils import logging as hf_logging
+            hf_logging.disable_progress_bar()
+        except Exception:
+            pass
+        from sentence_transformers import SentenceTransformer
+        _EMBED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+    return _EMBED_MODEL
+
+
+def _embed(texts: list) -> list:
+    model = _get_embed_model()
+    return model.encode(texts, convert_to_numpy=True, show_progress_bar=False).tolist()
+
+
+def _extract_facts(history: list) -> list[str]:
+    from model import model
+    conversation = "\n".join(f"{e['role']}: {e['content']}" for e in history)
+    raw = model(
+        f"Extract factual preferences, habits, and personal details about the user from this conversation. "
+        f"Return one fact per line, plain text, no bullets or numbering. "
+        f"Only include concrete facts (e.g. 'User prefers jazz', 'User wakes at 7am'). "
+        f"Ignore small talk, greetings, and one-off requests.\n\n{conversation}",
+        0.0,
+    )
+    return [f.strip() for f in raw.splitlines() if f.strip()]
+
+
+def _is_duplicate_fact(collection, fact: str, embedding: list) -> bool:
+    if collection.count() == 0:
+        return False
+
+    results = collection.query(
+        query_embeddings=[embedding],
+        n_results=1,
+        include=["distances"],
+    )
+    distances = results.get("distances") or [[]]
+    if not distances[0]:
+        return False
+    return distances[0][0] <= DUPLICATE_DISTANCE_THRESHOLD
+
+
+def save_session(history: list) -> None:
+    if len(history) < 2:
+        return
+
+    facts = _extract_facts(history)
+    if not facts:
+        return
+
+    session_id = str(uuid.uuid4())
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    collection = _collection()
+    embeddings = _embed(facts)
+
+    new_facts, new_embeddings = [], []
+    for fact, embedding in zip(facts, embeddings):
+        if not _is_duplicate_fact(collection, fact, embedding):
+            new_facts.append(fact)
+            new_embeddings.append(embedding)
+
+    if not new_facts:
+        print("[Memory] No new facts to save.")
+        return
+
+    ids = [f"{session_id}_{i}" for i in range(len(new_facts))]
+    metadatas = [{"session_id": session_id, "timestamp": ts} for _ in new_facts]
+
+    collection.add(ids=ids, embeddings=new_embeddings, documents=new_facts, metadatas=metadatas)
+    print(f"[Memory] Saved {len(new_facts)} facts from this session.")
+
+
+def load_context(query: str) -> str:
+    collection = _collection()
+    if collection.count() == 0:
+        return ""
+
+    query_embedding = _embed([query])[0]
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=min(TOP_K, collection.count()),
+        include=["documents", "metadatas"],
+    )
+
+    facts = results["documents"][0]
+    if not facts:
+        return ""
+
+    lines = ["Facts about the user:"]
+    lines.extend(facts)
+    return "\n".join(lines)

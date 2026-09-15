@@ -42,9 +42,14 @@ def _system_prompt(settings: dict, past_context: str) -> str:
     return prompt
 
 
-def run(user_input: str, settings: dict) -> tuple[str, bool]:
+def run(user_input: str, settings: dict, cancel_event=None) -> tuple[str, bool]:
     # Returns (response_text, done). done=False means the assistant is waiting on
     # the user (a clarification or a confirmation) and the session should continue.
+    def cancelled():
+        return cancel_event is not None and cancel_event.is_set()
+
+    if cancelled():
+        return "", True
     start = time.time()
     clarified = clarification.resolve(user_input)
     if clarified.get("matched"):
@@ -56,6 +61,8 @@ def run(user_input: str, settings: dict) -> tuple[str, bool]:
             args = clarified["args"]
             policy_result = policy.check_policy(tool_used, args)
             if policy_result["decision"] == "allow":
+                if cancelled():
+                    return "", True
                 tool_result = execute_tool(tool_used, args)
                 eval.log(
                     user_input,
@@ -101,6 +108,8 @@ def run(user_input: str, settings: dict) -> tuple[str, bool]:
             eval.log(user_input, "policy_confirmation", success=True, latency_ms=int((time.time()-start)*1000))
             return confirmation["message"], True
         tool_used = confirmation["name"]
+        if cancelled():
+            return "", True
         tool_result = execute_tool(tool_used, confirmation["args"])
         eval.log(
             user_input,
@@ -116,6 +125,8 @@ def run(user_input: str, settings: dict) -> tuple[str, bool]:
         ctx_future = ex.submit(context.build_context, user_input)
         rag_future = ex.submit(memory.load_context, user_input)
 
+    if cancelled():
+        return "", True
     augmented_input, screenshot = ctx_future.result()
     past_context = rag_future.result()
     system_prompt = _system_prompt(settings, past_context)
@@ -144,7 +155,11 @@ def run(user_input: str, settings: dict) -> tuple[str, bool]:
     try:
         last_tool_result = None
         for _ in range(5):
+            if cancelled():
+                return "", True
             response = generate(contents, tools=TOOLS, system_instruction=system_prompt)
+            if cancelled():
+                return "", True
             candidate = response.candidates[0]
 
             function_calls = []
@@ -166,6 +181,8 @@ def run(user_input: str, settings: dict) -> tuple[str, bool]:
 
             result_parts = []
             for fc in function_calls:
+                if cancelled():
+                    return "", True
                 args = dict(fc.args)
                 tool_used = fc.name
                 print(f"[Tool] {fc.name}({args})")

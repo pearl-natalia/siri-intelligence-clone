@@ -1,5 +1,8 @@
 import json
 import sys
+import threading
+import re
+from runtime_paths import load_settings
 
 from PyQt5.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QFont, QPainter
@@ -30,8 +33,7 @@ MUTED = "#5F6368"
 
 
 def _settings() -> dict:
-    with open("settings.json", "r") as f:
-        return json.load(f)
+    return load_settings()
 
 
 class AssistantWorker(QObject):
@@ -41,31 +43,40 @@ class AssistantWorker(QObject):
     failed = pyqtSignal(str)
     finished = pyqtSignal(bool)
 
+    def __init__(self):
+        super().__init__()
+        self.cancel = threading.Event()
+
     def run(self):
+        # finished carries whether voice should keep listening, independent of
+        # whether the last tool request itself completed.
+        keep_listening = False
         try:
             settings = _settings()
-
-            self.status.emit("Listening")
-            text = transcribe()
-            if not text:
-                self.failed.emit("I didn't catch that.")
-                self.finished.emit(True)
+            self.status.emit("Listening · pause when you finish")
+            text = transcribe(cancel_event=self.cancel)
+            if self.cancel.is_set():
                 return
-
+            if not text:
+                self.status.emit("No speech heard · tap Start to continue")
+                return
             self.transcript.emit(text)
+            if re.fullmatch(r"(?:stop|end|exit) voice chat[.!?]*", text, re.IGNORECASE):
+                self.status.emit("Voice chat ended")
+                return
             add_user_message(text)
-
             self.status.emit("Thinking")
-            answer, done = agent.run(text, settings)
+            answer, _done = agent.run(text, settings, cancel_event=self.cancel)
+            if self.cancel.is_set():
+                return
             add_assistant_message(answer)
             self.response.emit(answer)
-
             self.status.emit("Speaking")
-            speech(answer)
-            self.finished.emit(done)
-        except Exception as exc:
-            self.failed.emit(f"Sorry, something went wrong: {exc}")
-            self.finished.emit(True)
+            keep_listening = speech(answer, cancel_event=self.cancel)
+        except Exception:
+            self.failed.emit("Swift couldn't finish that turn. Check your connection, API key, and microphone permission, then try again.")
+        finally:
+            self.finished.emit(keep_listening and not self.cancel.is_set())
 
 
 class Pulse(QWidget):
@@ -116,6 +127,8 @@ class SwiftWindow(QWidget):
         self._thread = None
         self._worker = None
         self._waiting_for_followup = False
+        self._voice_active = False
+        self._closing = False
         self._drag_position = None
 
         self.setWindowTitle("Swift")
@@ -187,9 +200,9 @@ class SwiftWindow(QWidget):
         self.scroll.setMinimumHeight(400)
         self.scroll.setStyleSheet("background: transparent; border: none;")
 
-        self.button = QPushButton("▶")
-        self.button.setFixedSize(64, 64)
-        self.button.clicked.connect(self.start_turn)
+        self.button = QPushButton("Start")
+        self.button.setFixedSize(130, 64)
+        self.button.clicked.connect(self.toggle_voice)
 
         self.close_button = QPushButton("Close")
         self.close_button.setStyleSheet(
@@ -202,11 +215,30 @@ class SwiftWindow(QWidget):
         layout.addWidget(self.scroll, stretch=1)
         layout.addWidget(self.button, alignment=Qt.AlignCenter)
         layout.addWidget(self.close_button)
-        self.add_message("swift", "Tap play and ask Swift something.")
+        self.add_message("swift", "Tap Start to talk. I’ll answer aloud and keep listening. Tap Stop or say ‘end voice chat’ to finish.")
+
+    def toggle_voice(self):
+        if self._voice_active:
+            self._voice_active = False
+            self._waiting_for_followup = False
+            if self._worker:
+                self._worker.cancel.set()
+            self.button.setText("Stopping…")
+            self.button.setEnabled(False)
+            self.status.setText("Stopping voice · finishing any current action")
+            if not self._thread:
+                self.button.setText("Start")
+                self.button.setEnabled(True)
+                self.status.setText("Voice chat ended")
+        elif not self._thread:
+            self._voice_active = True
+            self.start_turn()
 
     def start_turn(self):
-        self.button.setEnabled(False)
-        self.button.setText("…")
+        if not self._voice_active or self._thread:
+            return
+        self.button.setEnabled(True)
+        self.button.setText("Stop")
         if self._waiting_for_followup:
             self.status.setText("Listening for your answer")
         else:
@@ -240,29 +272,27 @@ class SwiftWindow(QWidget):
         self.status.setText("Error")
         self.add_message("swift", text)
 
-    def finish_turn(self, done: bool):
-        self._waiting_for_followup = not done
-        if self._waiting_for_followup:
-            self.status.setText("Listening for your answer")
-            self.button.setText("…")
-            self.button.setEnabled(False)
-            QTimer.singleShot(900, self._start_followup_turn)
-        else:
-            self.status.setText("Ready")
-            self.button.setText("▶")
-            self.button.setEnabled(True)
+    def finish_turn(self, keep_listening: bool):
+        self._waiting_for_followup = keep_listening and self._voice_active
+        if not self._waiting_for_followup:
+            self._voice_active = False
 
     def _start_followup_turn(self):
-        if not self._waiting_for_followup:
-            return
-        if self._thread:
-            QTimer.singleShot(200, self._start_followup_turn)
-        else:
+        if self._voice_active and not self._thread:
             self.start_turn()
 
     def _turn_stopped(self):
         self._thread = None
         self._worker = None
+        if self._closing:
+            self.close()
+        elif self._waiting_for_followup:
+            QTimer.singleShot(450, self._start_followup_turn)
+        else:
+            self.button.setText("Start")
+            self.button.setEnabled(True)
+            if self.status.text().startswith("Stopping"):
+                self.status.setText("Voice chat ended")
 
     def add_message(self, sender: str, text: str):
         row = QHBoxLayout()
@@ -296,7 +326,19 @@ class SwiftWindow(QWidget):
         bar.setValue(bar.maximum())
 
     def closeEvent(self, event):
-        memory.save_session(get_history())
+        self._closing = True
+        self._voice_active = False
+        self._waiting_for_followup = False
+        if self._thread:
+            if self._worker:
+                self._worker.cancel.set()
+            self.status.setText("Finishing the current turn before closing…")
+            event.ignore()
+            return
+        try:
+            memory.save_session(get_history())
+        except Exception:
+            pass
         event.accept()
 
     def mousePressEvent(self, event):

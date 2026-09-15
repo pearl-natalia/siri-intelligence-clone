@@ -1,7 +1,8 @@
 import sqlite3, os, time
 from datetime import datetime
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "eval.db")
+from runtime_paths import data_dir
+DB_PATH = str(data_dir() / "eval.db")
 
 
 def _connect():

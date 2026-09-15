@@ -131,8 +131,8 @@ def play_music(dialogue, llm_response):
         music_system(dialogue)
 
 def music_system(dialogue):
-    with open('settings.json', 'r') as file:
-        json_data = json.load(file)
+    from runtime_paths import load_settings
+    json_data = load_settings()
     json_string = json.dumps(json_data)
     prompt =    f"""
                 You are an assistant skilled in generating AppleScript (OSA) scripts for automating music related tasks on macOS. 

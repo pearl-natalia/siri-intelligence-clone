@@ -46,10 +46,8 @@ def generate_email(content):
     curr_date = current_datetime.date()
     curr_time = current_datetime.time()
 
-    parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    json_file_path = os.path.join(parent_dir, 'settings.json')
-    with open(json_file_path, 'r') as file:
-        data = json.load(file)
+    from runtime_paths import load_settings
+    data = load_settings()
     first_name = data["user_first_name"]
     last_name = data["user_last_name"]
 
