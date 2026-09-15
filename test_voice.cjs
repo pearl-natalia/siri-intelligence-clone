@@ -60,6 +60,16 @@ test('permission rejection stops without repeated microphone prompts',()=>{
   assert.equal(f.active,false);assert.match(f.state,/Microphone blocked/);assert.equal(f.timers.size,0);
 });
 
+test('an unavailable recognizer returns to an idle state instead of trapping voice chat',()=>{
+  const f=setup();
+  f.voice.Recognition=class {constructor(){throw new Error('Recognition service unavailable');}};
+  assert.doesNotThrow(()=>f.voice.start());
+  assert.equal(f.active,false);
+  assert.match(f.state,/Voice could not start/);
+  assert.equal(f.requests.length,0);
+  assert.equal(f.timers.size,0);
+});
+
 test('three empty turns pause voice instead of listening indefinitely',async()=>{
   const f=setup();f.voice.start();for(let i=0;i<3;i++){await f.recognizers[i].end();if(i<2)f.runTimer();}
   assert.equal(f.active,false);assert.equal(f.requests.length,0);assert.match(f.state,/silence/);

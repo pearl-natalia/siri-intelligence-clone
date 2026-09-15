@@ -35,7 +35,9 @@ class VoiceConversation {
   }
   listen(generation) {
     if (!this.current(generation)) return;
-    const recognition = new this.Recognition();
+    let recognition;
+    try { recognition = new this.Recognition(); }
+    catch (_) { this.stop('Voice could not start. Try again or type below.'); return; }
     this.recognition = recognition;
     recognition.lang = 'en-US';
     recognition.interimResults = true;

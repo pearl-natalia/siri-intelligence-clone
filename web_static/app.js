@@ -8,7 +8,7 @@ function addMessage(role, text, links = []) {
   const bubble = document.createElement('article');
   bubble.className = 'bubble ' + role;
   const label = document.createElement('small');
-  label.textContent = role === 'user' ? 'YOU' : role === 'error' ? 'PLEASE TRY AGAIN' : 'SWIFT';
+  label.textContent = role === 'user' ? 'You' : role === 'error' ? 'Could not respond' : 'Swift';
   bubble.append(label, document.createTextNode(text));
   for (const link of links) {
     try {
@@ -19,12 +19,14 @@ function addMessage(role, text, links = []) {
       anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; bubble.append(anchor);
     } catch (_) { /* Ignore malformed links. */ }
   }
-  $('messages').append(bubble); bubble.scrollIntoView({block: 'nearest'});
+  $('empty-state').hidden = true;
+  $('messages').append(bubble);
+  $('messages').scrollTop = $('messages').scrollHeight;
 }
 function updateMic() {
   $('mic').disabled = !Recognition || (busy && !voice?.active);
   $('mic').classList.toggle('listening', Boolean(voice?.active));
-  $('mic').textContent = voice?.active ? 'End voice chat' : 'Start voice chat ↗';
+  $('mic-label').textContent = voice?.active ? 'End voice chat' : 'Start voice chat';
   $('mic').setAttribute('aria-pressed', String(Boolean(voice?.active)));
 }
 function setBusy(value) {
@@ -52,7 +54,7 @@ function browserSpeak(text, version) {
     const timer = setTimeout(() => {if (version === speechVersion) stopSpeech(); finish(false);}, 180000);
     finishSpeech = finish;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onstart = () => {if(version === speechVersion)setState('Speaking · browser voice');};
+    utterance.onstart = () => {if(version === speechVersion)setState('Speaking…');};
     utterance.onend = () => finish(version === speechVersion);
     utterance.onerror = () => finish(false);
     try { synth.speak(utterance); } catch (_) { finish(false); }
@@ -83,7 +85,7 @@ async function speak(text) {
         finishSpeech = finish;
         speechAudio.onended = () => finish(version === speechVersion);
         speechAudio.onerror = () => finish(false);
-        speechAudio.play().then(() => {if(version === speechVersion)setState('Speaking · ElevenLabs');}).catch(() => finish(false));
+        speechAudio.play().then(() => {if(version === speechVersion)setState('Speaking…');}).catch(() => finish(false));
       });
       if (version !== speechVersion) return false;
       speechAudio.onended = speechAudio.onerror = null; speechAudio.pause(); speechAudio = undefined;
@@ -94,7 +96,7 @@ async function speak(text) {
       if (version !== speechVersion) return false;
       // Avoid repeating a failed provider request on every conversational turn.
       ttsRetryAfter = Date.now() + 300000;
-      setState('Using browser voice…');
+      setState('Preparing audio…');
     } finally {clearTimeout(timer);}
   }
   return browserSpeak(text, version);
@@ -132,10 +134,14 @@ $('chat-form').addEventListener('submit', async (event) => {
   } catch (_) { if (!$('message').value) $('message').value = message; }
 });
 $('message').addEventListener('keydown', (event) => {if(event.key === 'Enter' && !event.shiftKey){event.preventDefault(); $('chat-form').requestSubmit();}});
-document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => {if(!busy){$('message').value = button.dataset.prompt; $('message').focus();}}));
+document.querySelectorAll('[data-prompt]').forEach(button => button.addEventListener('click', () => {
+  if (busy) return;
+  $('message').value = button.dataset.prompt;
+  $('chat-form').requestSubmit();
+}));
 $('stop').addEventListener('click', () => {voice?.stop(busy ? 'Thinking · voice ended' : 'Voice and audio stopped'); stopSpeech();});
 $('speak').addEventListener('change', () => {if (!$('speak').checked) {voice?.stop('Voice chat ended');stopSpeech();setState(busy ? 'Thinking…' : 'Ready when you are');}});
-$('clear').addEventListener('click', () => {if(busy)return; voice?.stop(); history = []; $('messages').replaceChildren(); $('message').value=''; stopSpeech(); setState('A fresh start');});
+$('clear').addEventListener('click', () => {if(busy)return; voice?.stop(); history = []; $('messages').replaceChildren(); $('empty-state').hidden=false; $('message').value=''; stopSpeech(); setState('Ready');});
 if (Recognition) {
   voice = new window.VoiceConversation({
     Recognition, send: sendMessage, speak, stopSpeech, onState: setState,
@@ -156,11 +162,6 @@ document.addEventListener('visibilitychange', () => {if(document.hidden) {voice?
 window.addEventListener('pagehide', () => {voice?.stop();stopSpeech();});
 fetch('/api/status').then(response=>{if(!response.ok)throw new Error(); return response.json();}).then(data=>{
   ttsConfigured = Boolean(data.tts_configured);
-  if (data.mac_download === '/download/mac') {
-    $('mac-download').href = data.mac_download;
-    $('mac-download').hidden = false;
-    $('mac-release-note').textContent = 'Intel Mac preview · uses your own Gemini key. This development build is not Apple-notarized.';
-  }
-  if (!busy && !voice?.active) setState('Ready when you are');
-  if(!data.ai_configured){$('setup').hidden=false;$('setup').textContent='One last step: add GEMINI_API_KEY in Replit Secrets and restart to enable AI replies. The time shortcut works now. Add WEATHER_API for city weather.';}
+  if (!busy && !voice?.active) setState('Ready');
+  if(!data.ai_configured){$('setup').hidden=false;$('setup').textContent='AI replies are temporarily unavailable. You can still check the time or download the Mac preview.';}
 }).catch(()=>setState('Connection unavailable · refresh to reconnect'));

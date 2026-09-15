@@ -17,3 +17,8 @@ eval.db
 .env.*
 !.env.example
 releases/*.zip
+.venv-web/
+memory.sqlite3*
+transcription.txt
+swift-*-transfer/
+swift-native-source-*/

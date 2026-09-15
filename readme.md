@@ -1,59 +1,51 @@
-# Swift - A Voice Assistant for MacBooks
-<p align="center">
-  <img width="50%" alt="alt-text" src="https://github.com/user-attachments/assets/ac82068c-e2bd-4079-8f95-f69e0e99bd19"  />
-</p>
+# Swift
 
-## Overview
-Swift is an AI assistant for MacBooks, inspired by what Siri could become with Apple Intelligence by 2026. It processes voice commands by breaking them down into executable AppleScript actions via AI agents.
+A voice assistant with a browser demo and a standalone Mac app. Start a conversation, speak, pause, and Swift replies aloud before listening again.
 
-<p align="center">
-  <img width="100%" alt="alt-text" src="https://github.com/user-attachments/assets/cb4f2774-fccf-499e-a419-fd3f3b623096" />
-</p>
+[Try the web demo](https://siri-intelligence-clone--pearlnatalia.replit.app/) · [Mac preview and release notes](https://github.com/pearl-natalia/siri-intelligence-clone/releases/tag/v0.1.0-mac-preview) · [Development and packaging](REPLIT.md)
 
-## INPUT
-The voice assistant will listen for input audio until a threshold of silence, giberish (umms, ands, etc) or background noise is met. Whisper will then output the transcription into a .txt which will serve as the initial input for the voice assistant. 
+## Two ways to use it
 
-Using few-shot prompting, Gemini determines the category of the action (refer to diagram). This is crucial to ensure specific APIs are only provided to the agent when needed. 
+| | Browser demo | Mac app |
+| --- | --- | --- |
+| Runs on | Replit | Your Mac |
+| Voice input | Browser speech recognition | Local Whisper transcription |
+| Reasoning | Gemini, through the web server | Gemini, using your own key |
+| Spoken replies | ElevenLabs with browser speech fallback | ElevenLabs with macOS speech fallback |
+| Actions | Search, city weather, time, music and map links | Native app controls through AppleScript and macOS permissions |
+| Memory | Current tab only; clears on refresh | Local SQLite full-text search |
 
-## EXECUTION
-Then, the agent uses chain-of-thought reasoning to break down the request into smaller steps to understand how to achieve it with executable actions.
+The browser does not remotely control your Mac. Downloading the app provides a separate desktop conversation. The Mac app stores credentials in macOS Keychain and settings and memory in `~/Library/Application Support/Swift`. Existing source checkouts with Chroma data retain the legacy backend.
 
-#### EXAMPLE 
-- Input: "Cancel my meeting tmrw"
-- Chain-of-thought:
-    1. Find all events from Calendar happening tomorrow 
-    2. Determine which of these events can be a meeting based on the event name
-        - If only 1 "meeting" event, cancel it
-        - If more than 1 "meeting" event, request more details from user to understand which meeting to cancel
-        - If no "meeting", let user know there's no meeting
-    
-    3. Only 1 "meeting" event was found. Generate an AppleScript to cancel this meeting.
-    4. Received an error response to executing the script. Generate a different script.
-    5. Successful response. Exiting...
+## Try the browser demo
 
-#### MUSIC
-For song related requests, the agent as access to a spotify API to convert song/playlist/album names into a URI. This URI is used in an AppleScript to play that song. The agent can also suggest songs, play top tracks, etc.
+Click **Start voice chat** and allow the microphone. Speech is sent automatically after a pause. Swift stops listening while preparing and playing its reply, then listens again. Click **End voice chat**, or say “end voice chat”, to stop. Typed messages and example requests are also available.
 
-#### WEATHER
-The agent combines live location info (core location) with a weather API to get up-to-date weather-related information.
+Voice recognition depends on browser support. The page offers text input when recognition is unavailable. Browser conversations go to Gemini; speech recognition may send audio to the browser provider. ElevenLabs receives reply text when configured.
 
-#### COMMUNICATION
-For all communication-related tasks, the agent utilizes contact information to identify the intended recipient. By outputting your contacts list and performing a phonetic similarity search, Swift can accurately determine which contact you're referencing, even if the transcription differs from the actual spelling. This approach also enables you to send emails by simply mentioning a name rather than verbally stating the full email address. 
+## Develop in Replit
 
-#### iMessage
-To generate iMessage responses that match the user's style, the last few iMessages are analyzed to capture the tone, structure (e.g., capitalization), formality, and context of the conversation. A SQL database also tracks the top N most frequently used words and phrases by the user, which reflect their personality and communication style (such as preferred expressions or specific spelling). These insights are then used to make future responses align more closely with the user's way of communicating.
+1. Import this source into Replit.
+2. Add `GEMINI_API_KEY` in Replit Secrets. Optional: `ELEVENLABS_API_KEY` and `WEATHER_API`.
+3. Run `bash run-web.sh`. The browser runtime uses `requirements-web.txt` in its own virtual environment.
 
-#### LLM
-This category handles conversational and inquiry-based requests. Since it's conversation-driven, the LLM will continue engaging with the user until they close the voice assistant. The interaction is stored locally for faster retrieval and provided as history to Gemini, ensuring detailed long-term memory throughout the conversation.
+The production server serves only `web_static/` and the explicit API routes. Provider keys stay on the server. The demo currently has no Replit Auth or cloud account storage.
 
-#### RAG (IN PROGRESS)
-These stored interactions in SQL are intended to be converted into a vector database, enabling Retrieval-Augmented Generation (RAG) to fetch relevant context for future interactions. For example, if a user asks, "What reminders did I set earlier today?" or "Can you play the same playlist I requested this morning?", the system can accurately retrieve and reference past requests.
+## Run or build on a Mac
 
-## OUTPUT
-At the end of the conversation, the local history is stored in a global SQL database, enabling persistent memory through RAG for future interactions. A final response is then delivered using PlayAI for a natural, human-like voice before the system automatically exits.
+With Python 3.12 installed, run `./run-mac.command` and enter your own Gemini key in Settings. ElevenLabs and WeatherAPI are optional. Local speech models download on first use.
 
-## USE CASES
+For a self-contained app, use `packaging/requirements-build.txt` and `packaging/build-mac.sh`; see [REPLIT.md](REPLIT.md). Build separately for each Mac architecture.
 
-<p align="center">
-  <img width="100%" alt="alt-text" src="https://github.com/user-attachments/assets/19abf663-f51e-49ff-b521-51fd42ddc8d4" />
-</p>
+The published download is an **Intel Mac developer preview**, ad-hoc signed and **not Apple-notarized**. macOS may block its first launch. Review the release notes before testing it. Live microphone conversations and native actions still need testing on the receiving Mac. Native access requires the relevant macOS permissions; Stop prevents additional turns, but an action already executing may finish.
+
+Developer ID signing and Apple notarization remain required work for a smoother public download experience. The older Intel PyTorch dependency and legacy desktop dependencies also need a separate compatibility and dependency review before a production release.
+
+## Verify
+
+```sh
+.venv-web/bin/python -m unittest test_web test_speech test_desktop -q
+node --test test_voice.cjs
+```
+
+The checks cover API validation, secret-safe errors, isolation of browser actions from desktop execution, local memory isolation, voice turn-taking, provider fallback, and cancellation. They use mocks for native actions and speech providers. Passing these checks does not replace microphone and permission testing on a Mac.

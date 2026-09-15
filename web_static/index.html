@@ -1,14 +1,62 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Swift · Your voice, a little further</title><link rel="stylesheet" href="/static/style.css"><script src="/static/voice.js" defer></script><script src="/static/app.js" defer></script></head>
-<body><main>
-<header><a class="brand" href="/" aria-label="Swift home"><span class="brand-icon">✳</span> swift<span class="tag">BROWSER EDITION</span></a><button id="clear" class="quiet">New chat ↗</button></header>
-<section class="intro"><div class="eyebrow"><span class="dot"></span> A LITTLE HELP, ALOUD</div><h1>What's on<br><em>your mind?</em></h1><p>Ask a question. Find a little inspiration.<br>Let Swift take it from here.</p></section>
-<section class="voice-panel" aria-label="Swift assistant"><div class="orb" aria-hidden="true"><span>✳</span></div><p id="state" role="status">Getting ready…</p><button id="mic" class="mic" aria-pressed="false">Start voice chat <span>↗</span></button><p class="hint" id="voice-hint">Speak, pause, and Swift replies aloud. It listens again automatically. Say “end voice chat” or tap the button to finish.</p><p id="transcript" class="hint transcript" hidden></p></section>
-<div id="setup" class="notice" hidden></div>
-<section class="conversation" id="messages" aria-label="Conversation" aria-live="polite"></section>
-<div class="suggestions" aria-label="Try a question"><button data-prompt="What time is it?">◷ &nbsp; What time is it?</button><button data-prompt="Help me plan a focused morning.">✧ &nbsp; Plan my morning</button><button data-prompt="Find a relaxing playlist on Spotify.">♫ &nbsp; Find some music</button></div>
-<form id="chat-form"><label class="sr-only" for="message">Message Swift</label><textarea id="message" rows="1" maxlength="4000" placeholder="Or type a thought…" required></textarea><button id="send" type="submit" aria-label="Send message">↑</button></form>
-<div class="controls"><label><input type="checkbox" id="speak" checked> Read replies aloud</label><button id="stop" class="quiet">Stop voice &amp; audio</button></div>
-<section class="mac-download" aria-labelledby="mac-title"><div><div class="eyebrow">SWIFT FOR MAC</div><h2 id="mac-title">Take the conversation<br>to your Mac.</h2><p>Talk to Swift in the desktop app to work with your native apps. macOS asks for permission when needed.</p></div><div class="download-action"><a id="mac-download" class="download-button" hidden>Download Mac preview ↗</a><p id="mac-release-note">The Mac download is being prepared. You can try voice chat here now.</p></div></section>
-<footer><span>MADE TO LISTEN. READY TO HELP.</span><details><summary>What can Swift do here?</summary><p>Chat, web search, city weather and clickable links for Spotify and maps. Your Mac's apps, files, contacts and calendar stay on your Mac. Chat history lasts only until you refresh or start a new chat. Voice chat sends your words automatically after you pause. AI messages go to Gemini; voice recognition may use your browser provider's servers. Replies use ElevenLabs when available, with browser speech as a fallback.</p></details></footer>
-</main></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Try Swift's voice assistant in your browser, or download the Mac preview to work with native apps.">
+  <title>Swift — Voice assistant</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/voice.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to conversation</a>
+  <div class="page">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Swift home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h3v6H5zm5-4h3v14h-3zm5 2h3v10h-3z"/></svg>Swift</a>
+      <nav aria-label="Main navigation"><a href="#mac">Mac app</a><a href="https://github.com/pearl-natalia/siri-intelligence-clone/tree/codex/native-mac-app" target="_blank" rel="noopener noreferrer">Source <span aria-hidden="true">↗</span></a></nav>
+    </header>
+    <main>
+      <div class="page-heading"><div><p class="section-label">Web demo</p><h1>Talk to Swift.</h1><p>Start a voice conversation, or type a message.</p></div></div>
+      <div class="workspace" id="workspace">
+        <section class="chat" aria-labelledby="chat-title">
+          <div class="chat-heading"><h2 id="chat-title">Conversation</h2><button id="clear" class="text-button" type="button">New chat</button></div>
+          <div class="voice-toolbar">
+            <button id="mic" class="mic" type="button" aria-pressed="false" aria-describedby="voice-hint"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8"/></svg><span id="mic-label">Start voice chat</span></button>
+            <p id="state" role="status">Connecting…</p>
+          </div>
+          <p id="voice-hint" class="voice-hint">Pause to send. Say “end voice chat” or press the button to stop.</p>
+          <p id="transcript" class="transcript" hidden></p>
+          <div id="setup" class="notice" role="status" hidden></div>
+          <div class="chat-body">
+            <div id="empty-state" class="empty-state">
+              <h3>What would you like to do?</h3><p>Start voice chat, or write a message below.</p>
+              <div class="suggestions" aria-label="Example requests">
+                <button type="button" data-prompt="What time is it?">Check the time <span aria-hidden="true">↗</span></button>
+                <button type="button" data-prompt="Help me plan a focused morning.">Plan my morning <span aria-hidden="true">↗</span></button>
+                <button type="button" data-prompt="Find a relaxing jazz playlist on Spotify.">Find a jazz playlist <span aria-hidden="true">↗</span></button>
+              </div>
+            </div>
+            <div id="messages" class="conversation" role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions"></div>
+          </div>
+          <div class="composer">
+            <form id="chat-form"><label class="sr-only" for="message">Message Swift</label><textarea id="message" rows="2" maxlength="4000" placeholder="Message Swift…" required></textarea><button id="send" type="submit" aria-label="Send message"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></form>
+            <div class="controls"><label><input type="checkbox" id="speak" checked> Speak replies</label><button id="stop" class="text-button" type="button">Stop voice &amp; audio</button></div>
+          </div>
+        </section>
+        <aside id="mac" class="mac" aria-labelledby="mac-title">
+          <div class="mac-heading"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="4" width="24" height="18" rx="2"/><path d="M12 28h8m-4-6v6M4 17h24"/></svg><span class="section-label">Swift for Mac</span></div>
+          <h2 id="mac-title">Work with your apps.</h2>
+          <p>The desktop app brings the conversation to your Mac, with native controls.</p>
+          <ul class="features"><li>Open and control apps</li><li>Work with Calendar and Messages</li><li>Keep searchable memory on your Mac</li></ul>
+          <a id="mac-download" class="download-button" href="/download/mac">Download Mac preview <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg></a>
+          <p id="mac-release-note" class="release-note">Intel Mac · 311 MB · Developer preview</p>
+          <div class="mac-setup"><p>Requires your own Gemini API key. ElevenLabs is optional.</p><details><summary>Before you open the app</summary><p>This preview is not Apple-notarized. For your own testing, macOS offers an <strong>Open Anyway</strong> option in Privacy &amp; Security after a blocked launch. Review the release notes before granting access.</p><p>The app stores keys in macOS Keychain. It downloads a speech model on first use and needs microphone permission. Native actions may need additional macOS permissions.</p></details><a class="subtle-link" href="https://github.com/pearl-natalia/siri-intelligence-clone/releases/tag/v0.1.0-mac-preview" target="_blank" rel="noopener noreferrer">Setup &amp; release notes <span aria-hidden="true">↗</span></a></div>
+        </aside>
+      </div>
+    </main>
+    <footer><p>Browser demo hosted on Replit.</p><details><summary>About this demo</summary><p>The browser supports conversation, web search, city weather, and links to music and maps. Native app controls require the Mac app. Browser history clears when you refresh or start a new chat.</p><p>Messages go to Gemini. Voice recognition may send audio to your browser provider. Spoken replies use ElevenLabs when available, with browser speech as a fallback.</p></details></footer>
+  </div>
+</body>
+</html>
