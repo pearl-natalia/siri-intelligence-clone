@@ -20,7 +20,8 @@ function addMessage(role, text, links = []) {
       const url = new URL(link.url);
       if (url.protocol !== 'https:' || url.username || url.password) continue;
       const anchor = document.createElement('a');
-      anchor.href = url.href; anchor.textContent = link.label + ' ↗';
+      anchor.href = url.href; anchor.textContent = link.label + (link.kind === 'mac_download' ? '' : ' ↗');
+      if (link.kind === 'mac_download') anchor.className = 'download-action';
       anchor.target = '_blank'; anchor.rel = 'noopener noreferrer'; bubble.append(anchor);
     } catch (_) { /* Ignore malformed links. */ }
   }

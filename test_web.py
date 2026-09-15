@@ -61,4 +61,24 @@ class WebTests(unittest.TestCase):
             self.client.post('/api/chat',json={'message':'time'})
         self.assertEqual(self.client.post('/api/chat',json={'message':'time'}).status_code,429)
 
+    def test_native_request_returns_download_without_executing_or_claiming_success(self):
+        response = SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[types.Part(function_call=types.FunctionCall(name='use_mac_app', args={}))]))])
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test'}), patch.object(adapter.genai, 'Client') as factory, patch('subprocess.run', side_effect=AssertionError('Desktop execution')):
+            model = factory.return_value.__enter__.return_value.models.generate_content
+            model.return_value = response
+            answer = self.client.post('/api/chat', json={'message': 'Open Calculator on my Mac'}).json
+            self.assertEqual(answer['mode'], 'mac_required')
+            self.assertEqual(answer['reply'], adapter.MAC_REQUIRED_MESSAGE)
+            self.assertEqual(answer['links'][0]['kind'], 'mac_download')
+            self.assertEqual(answer['links'][0]['url'], self.client.get('/download/mac').headers['Location'])
+            self.assertEqual(model.call_count, 1)
+
+    def test_normal_answer_does_not_offer_mac_download(self):
+        response = SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[types.Part.from_text(text='Here is a draft of your message.')]))])
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test'}), patch.object(adapter.genai, 'Client') as factory:
+            factory.return_value.__enter__.return_value.models.generate_content.return_value = response
+            answer = adapter.reply('Draft a message', [], 'UTC')
+            self.assertEqual(answer['mode'], 'live')
+            self.assertEqual(answer['links'], [])
+
 if __name__ == '__main__': unittest.main()

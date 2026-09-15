@@ -7,13 +7,12 @@ from urllib.parse import urlparse
 import requests
 from flask import Flask, Response, jsonify, request, redirect
 from werkzeug.exceptions import HTTPException
-from web_assistant import reply
+from web_assistant import reply, MAC_DOWNLOAD_URL
 
 app = Flask(__name__, static_folder="web_static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = 65536
 visits = defaultdict(deque)
 visit_lock = Lock()
-MAC_DOWNLOAD_URL = "https://github.com/pearl-natalia/siri-intelligence-clone/releases/download/v0.1.0-mac-preview/Swift-macOS-x86_64.zip"
 
 @app.after_request
 def headers(response):
