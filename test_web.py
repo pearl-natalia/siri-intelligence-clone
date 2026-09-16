@@ -61,6 +61,27 @@ class WebTests(unittest.TestCase):
             self.client.post('/api/chat',json={'message':'time'})
         self.assertEqual(self.client.post('/api/chat',json={'message':'time'}).status_code,429)
 
+    def test_profile_tool_ignores_supplied_identity_and_keeps_sessions_separate(self):
+        forged = {'name': 'Mallory', 'user_id': 'bob'}
+        for profile, expected in [(None, None), ({'name': 'Alice', 'id': 'private-id'}, 'Alice'), ({'name': 'Bob'}, 'Bob')]:
+            with self.subTest(expected=expected):
+                self.assertEqual(adapter.execute('get_profile', forged, 'UTC', profile=profile),
+                    {'success': True, 'signed_in': bool(profile), 'display_name': expected})
+
+    def test_profile_reaches_model_through_tool_without_browser_handoff(self):
+        responses = [
+            SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[types.Part(function_call=types.FunctionCall(name='get_profile', args={}))]))]),
+            SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[types.Part.from_text(text='Your name is Alice.')]))]),
+        ]
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test'}), patch.object(adapter.genai, 'Client') as factory:
+            generate = factory.return_value.__enter__.return_value.models.generate_content
+            generate.side_effect = responses
+            answer = adapter.reply("What's my name?", [], profile={'name': 'Alice'})
+            self.assertEqual(answer['reply'], 'Your name is Alice.')
+            self.assertEqual(answer['links'], [])
+            result = generate.call_args.kwargs['contents'][-1].parts[0].function_response.response
+            self.assertEqual(result, {'success': True, 'signed_in': True, 'display_name': 'Alice'})
+
     def test_native_request_returns_download_without_executing_or_claiming_success(self):
         response = SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[types.Part(function_call=types.FunctionCall(name='use_mac_app', args={}))]))])
         with patch.dict(os.environ, {'GEMINI_API_KEY': 'test'}), patch.object(adapter.genai, 'Client') as factory, patch('subprocess.run', side_effect=AssertionError('Desktop execution')):

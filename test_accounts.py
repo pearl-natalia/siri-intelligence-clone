@@ -75,6 +75,18 @@ class AccountTests(unittest.TestCase):
             self.assertEqual(model.call_args.args[1], [{"role": "user", "text": "Test question"}, {"role": "model", "text": "Test answer"}])
         self.assertEqual(len(self.request("GET", "/api/conversations").json["conversations"]), 1)
 
+    def test_chat_profile_comes_only_from_current_verified_session(self):
+        for subject in (None, "alice", "bob"):
+            with self.subTest(subject=subject):
+                csrf = self.login_fixture(subject)[0] if subject else None
+                with patch("web_app.reply", return_value={"reply": "Name answer", "mode": "live"}) as model:
+                    response = self.request("POST", "/api/chat", csrf=csrf,
+                        headers={"X-Replit-User-Name": "Mallory"},
+                        json={"message": "What's my name?", "profile": {"name": "Mallory"}, "name": "Mallory"})
+                    self.assertEqual(response.status_code, 200)
+                    expected = {"name": subject.title()} if subject else None
+                    self.assertEqual(model.call_args.kwargs, {"profile": expected})
+
     def test_other_user_cannot_read_write_or_delete_a_chat(self):
         csrf, _ = self.login_fixture()
         chat = self.send(csrf).json["conversation"]

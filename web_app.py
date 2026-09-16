@@ -67,7 +67,9 @@ def chat():
             return jsonify(error="Swift is busy. Please try again in a minute."), 429
         recent.append(now)
     try:
-        answer = reply(message.strip(), history, timezone)
+        # Only the verified session supplies profile context, never request JSON.
+        profile = {"name": user["name"]} if user else None
+        answer = reply(message.strip(), history, timezone, profile=profile)
     except Exception as exc:
         code = getattr(exc, "code", None)
         if code in (401, 403):
