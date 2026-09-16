@@ -6,7 +6,7 @@ from threading import Lock
 from uuid import uuid4
 
 from sqlalchemy import (JSON, Boolean, Column, Float, ForeignKey, Integer, MetaData,
-                        String, Table, create_engine, delete, insert, select, update)
+                        String, Table, UniqueConstraint, create_engine, delete, insert, select, update)
 from sqlalchemy.engine import make_url
 from werkzeug.exceptions import Conflict, NotFound, TooManyRequests
 
@@ -26,6 +26,16 @@ chats = Table("swift_web_chats", metadata,
     Column("messages", JSON, nullable=False),
     Column("revision", Integer, nullable=False),
     Column("updated", Float, nullable=False))
+memories = Table("swift_web_memories", metadata,
+    Column("id", String(36), primary_key=True),
+    Column("user_id", ForeignKey(users.c.id), nullable=False, index=True),
+    Column("topic", String(80), nullable=False),
+    Column("fact", String(500), nullable=False),
+    Column("updated", Float, nullable=False),
+    UniqueConstraint("user_id", "topic", name="swift_memory_user_topic"))
+memory_settings = Table("swift_web_memory_settings", metadata,
+    Column("user_id", ForeignKey(users.c.id), primary_key=True),
+    Column("enabled", Boolean, nullable=False))
 
 
 def token_hash(token):
@@ -120,3 +130,53 @@ class Store:
             result = conn.execute(delete(chats).where(chats.c.id == chat_id, chats.c.user_id == user_id))
             if result.rowcount != 1:
                 raise NotFound("This conversation is unavailable.")
+
+    def memory_enabled(self, user_id, conn=None):
+        if conn is None:
+            with self.engine.connect() as connection:
+                return self.memory_enabled(user_id, connection)
+        value = conn.execute(select(memory_settings.c.enabled).where(memory_settings.c.user_id == user_id)).scalar()
+        return value is not False
+
+    def list_memories(self, user_id):
+        self.ensure_schema()
+        with self.engine.connect() as conn:
+            return [dict(row) for row in conn.execute(select(memories.c.id, memories.c.topic,
+                memories.c.fact, memories.c.updated).where(memories.c.user_id == user_id)
+                .order_by(memories.c.updated.desc()).limit(50)).mappings()]
+
+    def set_memory_enabled(self, user_id, enabled):
+        with self.engine.begin() as conn:
+            conn.execute(select(users.c.id).where(users.c.id == user_id).with_for_update()).first()
+            if self.engine.dialect.name == "postgresql":
+                from sqlalchemy.dialects.postgresql import insert as upsert
+            else:
+                from sqlalchemy.dialects.sqlite import insert as upsert
+            conn.execute(upsert(memory_settings).values(user_id=user_id, enabled=enabled)
+                .on_conflict_do_update(index_elements=[memory_settings.c.user_id], set_={"enabled": enabled}))
+
+    def remember(self, user_id, topic, fact):
+        # The same owner lock serializes preference changes, corrections and quota checks.
+        with self.engine.begin() as conn:
+            conn.execute(select(users.c.id).where(users.c.id == user_id).with_for_update()).first()
+            if not self.memory_enabled(user_id, conn):
+                return {"success": False, "message": "Memory is paused. Nothing was saved."}
+            existing = conn.execute(select(memories.c.id).where(memories.c.user_id == user_id,
+                memories.c.topic == topic)).scalar()
+            now = time.time()
+            if existing:
+                conn.execute(update(memories).where(memories.c.id == existing, memories.c.user_id == user_id)
+                    .values(fact=fact, updated=now))
+                return {"success": True, "id": existing, "message": "Memory updated for this account."}
+            count = len(conn.execute(select(memories.c.id).where(memories.c.user_id == user_id).limit(50)).all())
+            if count >= 50:
+                return {"success": False, "message": "Memory is full. Remove a fact in Memory before adding another."}
+            fact_id = str(uuid4())
+            conn.execute(insert(memories).values(id=fact_id, user_id=user_id, topic=topic, fact=fact, updated=now))
+            return {"success": True, "id": fact_id, "message": "Memory saved for this account."}
+
+    def forget(self, user_id, fact_id):
+        with self.engine.begin() as conn:
+            result = conn.execute(delete(memories).where(memories.c.id == fact_id, memories.c.user_id == user_id))
+            if result.rowcount != 1:
+                raise NotFound("This memory is unavailable.")

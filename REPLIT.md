@@ -41,11 +41,15 @@ Open Preview. For microphone access, open the preview in its own browser tab, us
 - Existing weather and web-search helpers, with named cities and desktop opening disabled.
 - Clickable Spotify search, Google Maps and HTTPS browser links. Links do not automatically start playback.
 
-Mac app control, AppleScript, iMessage, Apple Calendar, contacts, Mac screen/clipboard capture, and desktop persistent memory are available only in the original macOS edition. The browser edition does not import that execution loop. Guest conversations are held in tab memory and reset on refresh/New chat. Provider errors are sanitized; repository and secret files are not served.
+Mac app control, AppleScript, iMessage, Apple Calendar, contacts, Mac screen/clipboard capture, and local Mac memory are available only in the original macOS edition. The browser edition does not import that execution loop. Guest conversations are held in tab memory and reset on refresh/New chat. Provider errors are sanitized; repository and secret files are not served.
 
 ## Replit accounts and saved browser chats
 
 Sign-in is optional. Guests can use the demo immediately. Signed-in users can reopen conversations through **Saved chats**, delete their own chats, and keep their **Speak replies** preference across visits. Starting a new chat leaves previous saved conversations available in the picker. Guest messages are not imported when signing in, and the Mac app's SQLite memory is not uploaded.
+
+Signed-in browser users also have private cross-chat memory in Replit PostgreSQL (`swift_web_memories` and `swift_web_memory_settings`). Swift saves lasting facts or preferences directly stated by the user, and loads up to 50 saved facts into new conversations. Corrections update the same topic. Memory tools are bound to the verified request owner; the model cannot choose a user ID. New facts require an exact supporting quote from the current user message. Secrets and inferred/third-party facts are excluded by the memory instructions.
+
+Open **Saved chats → Memory** to inspect or remove facts, or pause memory. Pausing stops retrieval and saving without deleting facts. Removing a fact does not remove its original chat, and deleting a chat does not erase separately saved facts. Guests have no persistent memory. No vector database or extra memory API key is needed.
 
 The web runtime uses Replit's OpenID Connect provider (`https://replit.com/oidc`) with Authlib and PKCE. `REPL_ID` is the public client ID supplied by Replit. Only `openid profile` is requested; Swift does not request email, workspace access, or offline provider access. The verified profile supplies the account identifier and display name. Authlib validates the authorization state, nonce, issuer, audience and signature. Provider tokens are discarded after login.
 
@@ -57,6 +61,6 @@ Development and published databases may be separate. Before publishing, confirm 
 
 ## Validation
 
-` .venv-web/bin/python -m unittest test_accounts test_web test_speech test_desktop -q ` covers account isolation, CSRF, session expiry/revocation, signed OIDC token validation, persistent preferences, revision conflicts, startup/setup, request validation, blocked native execution and safe errors. Account tests use temporary SQLite databases and signed test tokens, with no real credentials. `node --check web_static/app.js` checks the browser script. `node --test test_voice.cjs` verifies voice turn-taking, cancellation, permission failures and silence handling. Live Gemini, weather and microphone behavior require their respective key or browser permission.
+` .venv-web/bin/python -m unittest test_memory test_accounts test_web test_speech test_desktop -q ` covers account isolation, CSRF, session expiry/revocation, signed OIDC token validation, persistent preferences, revision conflicts, startup/setup, request validation, blocked native execution and safe errors. Account tests use temporary SQLite databases and signed test tokens, with no real credentials. `node --check web_static/app.js` checks the browser script. `node --test test_voice.cjs` verifies voice turn-taking, cancellation, permission failures and silence handling. Live Gemini, weather and microphone behavior require their respective key or browser permission.
 
 Run is the development preview. Public publishing, account access controls and production deployment are separate actions.

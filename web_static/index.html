@@ -65,7 +65,7 @@
   </div>
   <dialog id="sign-in-dialog" aria-labelledby="sign-in-title">
     <div class="dialog-heading"><h2 id="sign-in-title">Keep your conversations.</h2><button type="button" class="text-button" data-close-dialog="sign-in-dialog" aria-label="Close sign-in">Close</button></div>
-    <p>Sign in with Replit to save browser chats and your voice preference. Swift uses your Replit profile to keep your chats under your account.</p>
+    <p>Sign in with Replit to save chats, remember facts across conversations, and keep your voice preference. You can review or pause memory in Saved chats → Memory.</p>
     <p class="dialog-note">Guest chats stay in this tab and won’t be imported. Your Mac app’s memory stays on your Mac.</p>
     <a class="download-button" href="/api/auth/login">Continue with Replit <span aria-hidden="true">↗</span></a>
     <button type="button" class="guest-button" data-close-dialog="sign-in-dialog">Keep chatting as a guest</button>
@@ -73,8 +73,17 @@
   <dialog id="saved-dialog" aria-labelledby="saved-title">
     <div class="dialog-heading"><h2 id="saved-title">Your conversations</h2><button type="button" class="text-button" data-close-dialog="saved-dialog">Close</button></div>
     <p class="dialog-note">Saved to your Replit account. Select a chat to continue.</p>
+    <button id="open-memory" class="account-button" type="button">Memory</button>
     <div id="saved-list" class="saved-list"></div>
     <p id="saved-error" class="dialog-note" role="status" hidden></p>
+  </dialog>
+  <dialog id="memory-dialog" aria-labelledby="memory-title">
+    <div class="dialog-heading"><h2 id="memory-title">Memory</h2><button type="button" class="text-button" data-close-dialog="memory-dialog">Close</button></div>
+    <p class="dialog-note">Facts Swift remembers across your browser chats. Your Mac app’s memory stays on your Mac.</p>
+    <label class="memory-toggle"><input id="memory-enabled" type="checkbox"> Remember across chats</label>
+    <p class="dialog-note">Pausing stops using and saving facts. Removing a fact leaves its original chat unchanged.</p>
+    <div id="memory-list" class="saved-list"></div>
+    <p id="memory-error" class="dialog-note" role="status" hidden></p>
   </dialog>
 </body>
 </html>

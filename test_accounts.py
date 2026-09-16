@@ -85,7 +85,9 @@ class AccountTests(unittest.TestCase):
                         json={"message": "What's my name?", "profile": {"name": "Mallory"}, "name": "Mallory"})
                     self.assertEqual(response.status_code, 200)
                     expected = {"name": subject.title()} if subject else None
-                    self.assertEqual(model.call_args.kwargs, {"profile": expected})
+                    self.assertEqual(model.call_args.kwargs["profile"], expected)
+                    memory = model.call_args.kwargs["memory"]
+                    self.assertEqual(memory.user_id if memory else None, subject)
 
     def test_other_user_cannot_read_write_or_delete_a_chat(self):
         csrf, _ = self.login_fixture()

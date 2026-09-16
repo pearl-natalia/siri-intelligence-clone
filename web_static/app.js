@@ -40,6 +40,7 @@ function updateMic() {
 function setBusy(value) {
   busy = value; $('send').disabled = value; $('clear').disabled = value;
   $('saved-chats').disabled = value; $('sign-out').disabled = value; $('sign-in').disabled = value;
+  $('open-memory').disabled = value; $('memory-enabled').disabled = value;
   updateMic();
 }
 let ttsConfigured = false, ttsRetryAfter = 0, speechController, speechAudio, speechUrl, speechVersion = 0, finishSpeech;
@@ -190,7 +191,7 @@ function renderAccount(enabled) {
   $('account-name').hidden = !account;
   $('account-name').textContent = account?.name || '';
   $('saved-chats').hidden = !account;
-  accountNotice(account ? 'Signed in · chats save to your account.' : enabled ? 'Guest chat · sign in to save conversations.' : '');
+  accountNotice(account ? 'Signed in · chats and memory save to your account.' : enabled ? 'Guest chat · sign in to save conversations.' : '');
 }
 async function accountRequest(path, options = {}) {
   const response = await fetch(path, {...options, headers:{'Content-Type':'application/json', 'X-CSRF-Token':csrf}});
@@ -281,5 +282,46 @@ $('saved-chats').addEventListener('click', async () => {
   $('saved-error').hidden = true; $('saved-list').textContent = 'Loading…'; $('saved-dialog').showModal();
   try {await refreshSavedChats();}
   catch (error) {$('saved-list').textContent = ''; $('saved-error').textContent = error.message; $('saved-error').hidden = false;}
+  finally {setBusy(false);}
+});
+
+function memoryError(text) {$('memory-error').textContent = text; $('memory-error').hidden = !text;}
+async function refreshMemory() {
+  const data = await accountRequest('/api/memory');
+  $('memory-enabled').checked = data.enabled;
+  $('memory-list').replaceChildren();
+  if (!data.facts.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No saved facts yet. Try “Remember that I prefer jazz.”';
+    $('memory-list').append(empty);
+  }
+  for (const item of data.facts) {
+    const row = document.createElement('div'); row.className = 'saved-row';
+    const text = document.createElement('p'); text.className = 'memory-fact'; text.textContent = item.fact;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'text-button'; remove.textContent = 'Remove';
+    remove.setAttribute('aria-label', 'Remove memory: ' + item.fact);
+    remove.addEventListener('click', async () => {
+      if (busy || !window.confirm('Remove this saved fact? Its original chat will stay unchanged.')) return;
+      setBusy(true); memoryError('');
+      try {await accountRequest('/api/memory/' + encodeURIComponent(item.id), {method:'DELETE'}); await refreshMemory();}
+      catch (error) {memoryError(error.message);}
+      finally {setBusy(false);}
+    });
+    row.append(text, remove); $('memory-list').append(row);
+  }
+}
+$('open-memory').addEventListener('click', async () => {
+  if (busy || !account) return;
+  voice?.stop(); stopSpeech(); setBusy(true); memoryError('');
+  $('saved-dialog').close(); $('memory-list').textContent = 'Loading…'; $('memory-dialog').showModal();
+  try {await refreshMemory();}
+  catch (error) {$('memory-list').textContent = ''; memoryError(error.message);}
+  finally {setBusy(false);}
+});
+$('memory-enabled').addEventListener('change', async () => {
+  const enabled = $('memory-enabled').checked;
+  setBusy(true); memoryError('');
+  try {await accountRequest('/api/memory', {method:'PATCH',body:JSON.stringify({enabled})});}
+  catch (error) {$('memory-enabled').checked = !enabled; memoryError(error.message);}
   finally {setBusy(false);}
 });

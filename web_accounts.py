@@ -120,6 +120,28 @@ def init_accounts(app):
     def conversations():
         return jsonify(conversations=store().list_chats(g.swift_user["id"]))
 
+    @app.get("/api/memory")
+    @account_required
+    def memory():
+        return jsonify(enabled=store().memory_enabled(g.swift_user["id"]), facts=store().list_memories(g.swift_user["id"]))
+
+    @app.patch("/api/memory")
+    @account_required
+    def memory_preference():
+        check_csrf()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or type(data.get("enabled")) is not bool:
+            raise BadRequest("Choose whether Swift should remember facts.")
+        store().set_memory_enabled(g.swift_user["id"], data["enabled"])
+        return jsonify(enabled=data["enabled"])
+
+    @app.delete("/api/memory/<fact_id>")
+    @account_required
+    def forget_memory(fact_id):
+        check_csrf()
+        store().forget(g.swift_user["id"], fact_id)
+        return jsonify(ok=True)
+
     @app.get("/api/conversations/<chat_id>")
     @account_required
     def conversation(chat_id):

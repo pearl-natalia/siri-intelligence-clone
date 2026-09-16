@@ -69,7 +69,9 @@ def chat():
     try:
         # Only the verified session supplies profile context, never request JSON.
         profile = {"name": user["name"]} if user else None
-        answer = reply(message.strip(), history, timezone, profile=profile)
+        from web_memory import UserMemory
+        memory = UserMemory(store(), user["id"], message.strip()) if user else None
+        answer = reply(message.strip(), history, timezone, profile=profile, memory=memory)
     except Exception as exc:
         code = getattr(exc, "code", None)
         if code in (401, 403):
