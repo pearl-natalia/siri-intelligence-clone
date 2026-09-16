@@ -35,8 +35,8 @@ class WebTests(unittest.TestCase):
         with patch('subprocess.run', side_effect=AssertionError('Desktop execution')):
             self.assertFalse(adapter.execute('execute_system_command',{'task':'anything'},'UTC')['success'])
             self.assertFalse(adapter.execute('get_weather',{'city':'current'},'UTC')['success'])
-            self.assertIn('open.spotify.com',adapter.execute('control_music',{'action':'play','query':'jazz'},'UTC')['link']['url'])
-            self.assertFalse(adapter.execute('browser',{'action':'open_url','url':'javascript:alert(1)'},'UTC')['success'])
+            self.assertIn('open.spotify.com',adapter.execute('spotify_search_link',{'query':'jazz'},'UTC')['link']['url'])
+            self.assertFalse(adapter.execute('web_link',{'url':'javascript:alert(1)'},'UTC')['success'])
     def test_no_secret_in_errors(self):
         with patch('web_app.reply',side_effect=RuntimeError('secret=private')):
             result=self.client.post('/api/chat',json={'message':'hello'})
@@ -80,5 +80,48 @@ class WebTests(unittest.TestCase):
             answer = adapter.reply('Draft a message', [], 'UTC')
             self.assertEqual(answer['mode'], 'live')
             self.assertEqual(answer['links'], [])
+
+    def test_capability_questions_return_browser_limits_even_after_wrong_history(self):
+        cases = [('can u access my spotify', 'spotify'), ('Can you see my screen?', 'native'), ('What can you do?', 'browser')]
+        history = [{'role': 'model', 'text': 'Yes, I can control Spotify and read your screen.'}]
+        for question, topic in cases:
+            with self.subTest(topic=topic), patch.dict(os.environ, {'GEMINI_API_KEY': 'test'}), patch.object(adapter.genai, 'Client') as factory:
+                generate = factory.return_value.__enter__.return_value.models.generate_content
+                generate.return_value = SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[
+                    types.Part.from_text(text='Yes, I can access everything.'),
+                    types.Part(function_call=types.FunctionCall(name='describe_capabilities', args={'topic': topic})),
+                ]))])
+                answer = self.client.post('/api/chat', json={'message': question, 'history': history}).json
+                self.assertEqual(answer['mode'], 'capabilities')
+                self.assertEqual(answer['reply'], adapter.CAPABILITY_MESSAGES[topic])
+                self.assertNotIn('Yes, I can access everything.', answer['reply'])
+                self.assertEqual(bool(answer['links']), topic != 'browser')
+                self.assertEqual(generate.call_count, 1)
+
+    def test_web_catalog_and_dispatch_do_not_expose_native_tools(self):
+        forbidden = {'control_music', 'browser', 'maps', 'execute_system_command', 'send_message', 'calendar'}
+        catalog = {declaration['name']: declaration for declaration in adapter.DECLARATIONS}
+        self.assertFalse(forbidden.intersection(catalog))
+        self.assertNotIn('open_first_result', catalog['web_search']['parameters']['properties'])
+        with patch('subprocess.run', side_effect=AssertionError('Desktop execution')):
+            for name in forbidden:
+                self.assertFalse(adapter.execute(name, {'action': 'play', 'query': 'jazz'}, 'UTC')['success'])
+        with patch.object(adapter, '_web_search', return_value={'success': True}) as search:
+            adapter.execute('web_search', {'query': 'jazz', 'open_first_result': True}, 'UTC')
+            search.assert_called_once_with('jazz', max_results=3, open_first_result=False)
+
+    def test_spotify_search_produces_only_a_link(self):
+        responses = [
+            SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[types.Part(function_call=types.FunctionCall(name='spotify_search_link', args={'query': 'jazz & piano'}))]))]),
+            SimpleNamespace(candidates=[SimpleNamespace(content=types.Content(role='model', parts=[types.Part.from_text(text='Open this Spotify search link to find jazz and piano music.')]))]),
+        ]
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test'}), patch.object(adapter.genai, 'Client') as factory, patch('subprocess.run', side_effect=AssertionError('Desktop execution')):
+            generate = factory.return_value.__enter__.return_value.models.generate_content
+            generate.side_effect = responses
+            answer = adapter.reply('Find jazz and piano music on Spotify', [], 'UTC')
+            self.assertEqual(answer['mode'], 'live')
+            self.assertEqual(answer['links'][0]['url'], 'https://open.spotify.com/search/jazz%20%26%20piano')
+            tool_result = generate.call_args.kwargs['contents'][-1].parts[0].function_response.response
+            self.assertIn('nothing has been opened or played', tool_result['message'])
 
 if __name__ == '__main__': unittest.main()

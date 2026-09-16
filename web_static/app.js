@@ -177,7 +177,7 @@ window.addEventListener('pagehide', () => {voice?.stop();stopSpeech();});
 fetch('/api/status').then(response=>{if(!response.ok)throw new Error(); return response.json();}).then(data=>{
   ttsConfigured = Boolean(data.tts_configured);
   if (!busy && !voice?.active) setState('Ready');
-  if(!data.ai_configured){$('setup').hidden=false;$('setup').textContent='AI replies are temporarily unavailable. You can still check the time or download the Mac preview.';}
+  if(!data.ai_configured){$('setup').hidden=false;$('setup').textContent='AI replies are temporarily unavailable. You can still check the time or download the Mac app.';}
 }).catch(()=>setState('Connection unavailable · refresh to reconnect'));
 
 function accountNotice(text) {

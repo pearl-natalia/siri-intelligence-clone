@@ -9,7 +9,7 @@ The browser never exposes a remote control endpoint into the Mac. A desktop down
 
 ## Mac development and packaging
 
-The [Intel Mac developer preview](https://github.com/pearl-natalia/siri-intelligence-clone/releases/tag/v0.1.0-mac-preview) includes the app download and setup notes. The browser's Download Mac preview button redirects to its verified GitHub release asset. No large app archive or developer credentials need to be uploaded to Replit.
+The [Intel Mac developer preview](https://github.com/pearl-natalia/siri-intelligence-clone/releases/tag/v0.1.0-mac-preview) includes the app download and setup notes. The browser's Download for Mac button redirects to its verified GitHub release asset. No large app archive or developer credentials need to be uploaded to Replit.
 
 On a Mac with Python 3.12, run `./run-mac.command`. The launcher creates an isolated environment and installs `packaging/requirements-mac.txt`. Configure your own keys in the app's first-run settings. Gemini is required; ElevenLabs and WeatherAPI are optional. No developer keys are included in the download.
 
